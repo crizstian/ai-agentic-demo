@@ -68,7 +68,7 @@ spec:
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 1
+            timeoutSeconds: 7
             failureThreshold: 3
 
           # DEMO INTENTIONAL BUG:
@@ -81,6 +81,6 @@ spec:
               path: /health
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 5
-            periodSeconds: 3
-            timeoutSeconds: 1
-            failureThreshold: 1
+            periodSeconds: 8
+            timeoutSeconds: 7
+            failureThreshold: 2
