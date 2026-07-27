@@ -34,7 +34,6 @@ services:
       - ${HOME}/.kube:/home/devuser/.kube:ro
       - ${OBSIDIAN_VAULT_PATH:-${HOME}/Obsidian/Harness}:/home/devuser/obsidian:rw
       - ${HOME}/.config/gcloud:/home/devuser/.config/gcloud:rw
-      - ${AI_DEV_PLATFORM_PATH}:/workspace/ai-dev-platform:cached
     working_dir: /workspace/ai-agentic-demo
     user: devuser
     container_name: ai-agentic-demo
