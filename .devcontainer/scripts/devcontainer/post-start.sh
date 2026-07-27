@@ -74,28 +74,6 @@ curl -s --max-time 3 "$CHROME_URL/json/version" >/dev/null 2>&1 || \
 git config --global user.name "${GIT_USER_NAME:-devuser}" 2>/dev/null || true
 git config --global user.email "${GIT_USER_EMAIL:-devuser@localhost}" 2>/dev/null || true
 
-# Install .vsix extensions (local copy first, then platform mount fallback)
-HARNESS_VSIX=""
-for candidate in \
-  "$PROJECT_DIR/.devcontainer/plugins/harness-vscode-0.1.9-beta.2.vsix" \
-  /workspace/ai-dev-platform/plugins/harness-vscode-0.1.9-beta.2.vsix; do
-  [ -f "$candidate" ] && HARNESS_VSIX="$candidate" && break
-done
-
-if [ -n "$HARNESS_VSIX" ]; then
-  EXT_ID="harness-inc.harness-vscode"
-  if ! code --list-extensions 2>/dev/null | grep -qi "$EXT_ID"; then
-    echo "[post-start] Installing Harness AI Chatbot extension from $HARNESS_VSIX..."
-    code --install-extension "$HARNESS_VSIX" --force 2>&1 && \
-      echo "✓ Harness AI Chatbot installed" || \
-      echo "✗ Harness AI Chatbot installation failed"
-  else
-    echo "✓ Harness AI Chatbot already installed"
-  fi
-else
-  echo "✗ Harness VSIX not found in plugins/ — skipping"
-fi
-
 # MCP config auto-generation (probe sidecars, fallback to stdio)
 docker network create mcp-net 2>/dev/null || true
 
