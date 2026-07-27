@@ -10,7 +10,7 @@ spec:
   replicas: {{ .Values.replicas }}
 
   # Demo: make the rollout fail fast instead of waiting the default 10 minutes
-  progressDeadlineSeconds: 20
+  progressDeadlineSeconds: 40
   minReadySeconds: 0
 
   selector:
@@ -68,7 +68,7 @@ spec:
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSeconds: 7
+            timeoutSeconds: 10
             failureThreshold: 3
 
           # DEMO INTENTIONAL BUG:
@@ -80,7 +80,7 @@ spec:
             httpGet:
               path: /health
               port: {{ .Values.containerPort }}
-            initialDelaySeconds: 5
-            periodSeconds: 8
+            initialDelaySeconds: 10
+            periodSeconds: 10
             timeoutSeconds: 7
             failureThreshold: 2
