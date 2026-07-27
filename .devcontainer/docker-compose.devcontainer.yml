@@ -1,0 +1,46 @@
+networks:
+  mcp-net:
+    external: true
+    name: mcp-net
+
+services:
+  ai-agentic-demo:
+    # --- Option A: Pull from registry (recommended after CI publishes) ---
+    image: docker.io/crizstian/ai-dev-ai-agents:v0.0.3
+
+    # --- Option B: Local build via Docker Bake ---
+    # First build: docker buildx bake ai-agents -f /path/to/ai-dev-platform/images/docker-bake.hcl
+    # Then use:
+    # image: ai-dev-ai-agents:latest
+
+    # --- Available profiles ---
+    # golang        — Go 1.24 + dev tools + DevOps infra
+    # js-modern     — Bun, pnpm, Biome, TypeScript + DevOps infra
+    # ai-agents     — Python 3.12, uv, AI SDKs, Jupyter + DevOps infra
+    #
+    # All profiles include: Alpine 3.20, Node 22, Claude Code, opencode,
+    # core MCP servers, DevOps toolchain (terraform, kubectl, gcloud, helm, aws)
+
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ../:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${HOME}/.kube:/home/devuser/.kube:ro
+      - ${OBSIDIAN_VAULT_PATH:-${HOME}/Obsidian/Harness}:/workspace/obsidian:rw
+      - ${HOME}/.config/gcloud:/home/devuser/.config/gcloud:rw
+    working_dir: /workspace
+    user: devuser
+    container_name: ai-agentic-demo
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    tty: true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - mcp-net

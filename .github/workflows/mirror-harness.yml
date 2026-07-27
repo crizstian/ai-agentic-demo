@@ -1,0 +1,26 @@
+name: Mirror to Harness Code
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to Harness Code
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          git remote add harness \
+            "https://pat:${HARNESS_CODE_PAT}@git.harness.io/EeRjnXTnS4GrLG5VNNJZUw/sandbox/CristianRamirez/ai-agentic-demo.git"
+          git push harness "HEAD:refs/heads/${BRANCH}" --force
+        env:
+          HARNESS_CODE_PAT: ${{ secrets.HARNESS_CODE_PAT }}

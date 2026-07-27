@@ -1,0 +1,148 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "google/gemini-2.5-pro",
+  "agents": {
+    "build": {
+      "model": "google/gemini-2.5-pro",
+      "description": "Coding agent (Gemini 2.5 Pro — free)"
+    },
+    "plan": {
+      "model": "google/gemini-2.5-pro",
+      "description": "Planning agent (Gemini 2.5 Pro — free)"
+    }
+  },
+  "mcp": {
+    "harness": {
+      "type": "local",
+      "command": [
+        "harness-mcp-v2"
+      ],
+      "environment": {
+        "HARNESS_API_KEY": "{env:HARNESS_API_KEY}",
+        "HARNESS_ACCOUNT_ID": "{env:HARNESS_ACCOUNT_ID}",
+        "HARNESS_ORG": "{env:HARNESS_ORG}",
+        "HARNESS_PROJECT": "{env:HARNESS_PROJECT}",
+        "HARNESS_BASE_URL": "{env:HARNESS_BASE_URL}",
+        "HARNESS_TOOLSETS": "{env:HARNESS_TOOLSETS}",
+        "HARNESS_AUTO_APPROVE_RISK": "{env:HARNESS_AUTO_APPROVE_RISK}",
+        "HARNESS_PIPELINE_VERSION": "{env:HARNESS_PIPELINE_VERSION}",
+        "HARNESS_API_TIMEOUT_MS": "{env:HARNESS_API_TIMEOUT_MS}",
+        "LOG_LEVEL": "{env:LOG_LEVEL}"
+      },
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+      },
+      "enabled": true
+    },
+    "perplexity": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@perplexity-ai/mcp-server"
+      ],
+      "environment": {
+        "PERPLEXITY_API_KEY": "{env:PERPLEXITY_API_KEY}"
+      },
+      "enabled": true
+    },
+    "obsidian": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-obsidian",
+        "/workspace/obsidian"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "kubernetes": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "mcp-server-kubernetes"
+      ],
+      "environment": {
+        "KUBECONFIG": "{env:KUBECONFIG}"
+      },
+      "enabled": true
+    },
+    "chrome": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "${CHROME_DEVTOOLS_URL:-http://host.docker.internal:9222}"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "docker": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "docker/mcp-gateway"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "terraform": {
+      "type": "local",
+      "command": [
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:latest"
+      ],
+      "environment": {},
+      "enabled": true
+    },
+    "grafana": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@grafana/mcp-grafana"
+      ],
+      "environment": {
+        "GRAFANA_URL": "{env:GRAFANA_URL}",
+        "GRAFANA_API_KEY": "{env:GRAFANA_API_KEY}"
+      },
+      "enabled": true
+    },
+    "coworker": {
+      "type": "remote",
+      "url": "https://odin.coworker.ai/mcp",
+      "enabled": true
+    },
+    "harness-docs": {
+      "type": "remote",
+      "url": "https://hdh.mcp.kapa.ai",
+      "enabled": true
+    },
+    "gitlab": {
+      "type": "remote",
+      "url": "${GITLAB_MCP_URL:-https://gitlab.example.com/-/mcp}",
+      "enabled": true
+    }
+  }
+}

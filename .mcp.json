@@ -1,0 +1,123 @@
+{
+  "mcpServers": {
+    "harness": {
+      "type": "stdio",
+      "command": "harness-mcp-v2",
+      "args": [],
+      "env": {
+        "HARNESS_API_KEY": "${HARNESS_API_KEY}",
+        "HARNESS_ACCOUNT_ID": "${HARNESS_ACCOUNT_ID}",
+        "HARNESS_ORG": "${HARNESS_ORG}",
+        "HARNESS_PROJECT": "${HARNESS_PROJECT}",
+        "HARNESS_BASE_URL": "${HARNESS_BASE_URL}",
+        "HARNESS_TOOLSETS": "${HARNESS_TOOLSETS}",
+        "HARNESS_AUTO_APPROVE_RISK": "${HARNESS_AUTO_APPROVE_RISK}",
+        "HARNESS_PIPELINE_VERSION": "${HARNESS_PIPELINE_VERSION}",
+        "HARNESS_API_TIMEOUT_MS": "${HARNESS_API_TIMEOUT_MS}",
+        "LOG_LEVEL": "${LOG_LEVEL}"
+      }
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "perplexity": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@perplexity-ai/mcp-server"
+      ],
+      "env": {
+        "PERPLEXITY_API_KEY": "${PERPLEXITY_API_KEY}"
+      }
+    },
+    "obsidian": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-obsidian",
+        "/workspace/obsidian"
+      ],
+      "env": {}
+    },
+    "kubernetes": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-server-kubernetes"
+      ],
+      "env": {
+        "KUBECONFIG": "${KUBECONFIG}"
+      }
+    },
+    "chrome": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl",
+        "${CHROME_DEVTOOLS_URL:-http://host.docker.internal:9222}"
+      ],
+      "env": {}
+    },
+    "docker": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "docker/mcp-gateway"
+      ],
+      "env": {}
+    },
+    "terraform": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:latest"
+      ],
+      "env": {}
+    },
+    "grafana": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@grafana/mcp-grafana"
+      ],
+      "env": {
+        "GRAFANA_URL": "${GRAFANA_URL}",
+        "GRAFANA_API_KEY": "${GRAFANA_API_KEY}"
+      }
+    },
+    "coworker": {
+      "type": "http",
+      "url": "https://odin.coworker.ai/mcp"
+    },
+    "harness-docs": {
+      "type": "http",
+      "url": "https://hdh.mcp.kapa.ai"
+    },
+    "gitlab": {
+      "type": "http",
+      "url": "${GITLAB_MCP_URL:-https://gitlab.example.com/-/mcp}"
+    }
+  }
+}
