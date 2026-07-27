@@ -1,15 +1,3 @@
-node_modules/
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
-test-results/
-*.db
-.env
-coverage/
-.DS_Store
-
-# ai-dev-platform
 # Secrets
 .devcontainer/.env
 .devcontainer/plugins/
@@ -19,6 +7,7 @@ coverage/
 .mcp-audit.log
 
 # OS
+.DS_Store
 Thumbs.db
 
 # IDE
@@ -27,8 +16,12 @@ Thumbs.db
 *.swo
 
 # Node
+node_modules/
 
 # Go
 /vendor/
 
 # Python
+__pycache__/
+*.pyc
+.venv/

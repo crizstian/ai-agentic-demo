@@ -71,8 +71,8 @@ git config --global user.name "${GIT_USER_NAME:-devuser}" 2>/dev/null || true
 git config --global user.email "${GIT_USER_EMAIL:-devuser@localhost}" 2>/dev/null || true
 
 # Install .vsix extensions from local plugins/ (copied during adopt/init)
-WORKSPACE_ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
-LOCAL_PLUGINS="$WORKSPACE_ROOT/.devcontainer/plugins"
+DEVCONTAINER_DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
+LOCAL_PLUGINS="$DEVCONTAINER_DIR/plugins"
 HARNESS_VSIX="$LOCAL_PLUGINS/harness-vscode-0.1.9-beta.2.vsix"
 if [ -f "$HARNESS_VSIX" ]; then
   EXT_ID="harness-inc.harness-vscode"

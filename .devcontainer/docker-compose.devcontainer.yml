@@ -6,7 +6,7 @@ networks:
 services:
   ai-agentic-demo:
     # --- Option A: Pull from registry (recommended after CI publishes) ---
-    image: docker.io/crizstian/ai-dev-ai-agents:v0.0.3
+    image: docker.io/crizstian/ai-dev-ai-agents:v0.0.5
 
     # --- Option B: Local build via Docker Bake ---
     # First build: docker buildx bake ai-agents -f /path/to/ai-dev-platform/images/docker-bake.hcl
