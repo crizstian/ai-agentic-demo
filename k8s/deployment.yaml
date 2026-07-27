@@ -25,10 +25,31 @@ spec:
         harness.io/rollout-id: "{{ .Values.rolloutId }}"
 
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+
+      volumes:
+        # Writable location for the SQLite DB so the non-root container can start.
+        - name: data
+          emptyDir: {}
+
       containers:
         - name: {{ .Values.name }}
           image: {{ .Values.image }}
           imagePullPolicy: Always
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+
+          volumeMounts:
+            - name: data
+              mountPath: /data
 
           ports:
             - containerPort: {{ .Values.containerPort }}
