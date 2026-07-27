@@ -57,7 +57,7 @@ spec:
           # because of progressDeadlineSeconds.
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 5
             periodSeconds: 3
