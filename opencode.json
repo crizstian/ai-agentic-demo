@@ -61,7 +61,7 @@
         "npx",
         "-y",
         "mcp-obsidian",
-        "/workspace/obsidian"
+        "/home/devuser/obsidian"
       ],
       "environment": {},
       "enabled": true

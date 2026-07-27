@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Resolve project root from script location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
 echo "[post-start] configuring Docker socket permissions..."
 if [ -S /var/run/docker.sock ]; then
   DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
@@ -56,9 +60,9 @@ else
 fi
 
 # Obsidian vault (optional)
-if [ -d /workspace/obsidian ]; then
-  VAULT_FILES=$(find /workspace/obsidian -maxdepth 1 -name "*.md" 2>/dev/null | head -1)
-  [ -n "$VAULT_FILES" ] || echo "INFO: /workspace/obsidian mounted but appears empty"
+if [ -d /home/devuser/obsidian ]; then
+  VAULT_FILES=$(find /home/devuser/obsidian -maxdepth 1 -name "*.md" 2>/dev/null | head -1)
+  [ -n "$VAULT_FILES" ] || echo "INFO: /home/devuser/obsidian mounted but appears empty"
 fi
 
 # Chrome DevTools (optional)
@@ -70,20 +74,26 @@ curl -s --max-time 3 "$CHROME_URL/json/version" >/dev/null 2>&1 || \
 git config --global user.name "${GIT_USER_NAME:-devuser}" 2>/dev/null || true
 git config --global user.email "${GIT_USER_EMAIL:-devuser@localhost}" 2>/dev/null || true
 
-# Install .vsix extensions from local plugins/ (copied during adopt/init)
-DEVCONTAINER_DIR="$(dirname "$(dirname "$(dirname "$(readlink -f "$0")")")")"
-LOCAL_PLUGINS="$DEVCONTAINER_DIR/plugins"
-HARNESS_VSIX="$LOCAL_PLUGINS/harness-vscode-0.1.9-beta.2.vsix"
-if [ -f "$HARNESS_VSIX" ]; then
+# Install .vsix extensions (local copy first, then platform mount fallback)
+HARNESS_VSIX=""
+for candidate in \
+  "$PROJECT_DIR/.devcontainer/plugins/harness-vscode-0.1.9-beta.2.vsix" \
+  /workspace/ai-dev-platform/plugins/harness-vscode-0.1.9-beta.2.vsix; do
+  [ -f "$candidate" ] && HARNESS_VSIX="$candidate" && break
+done
+
+if [ -n "$HARNESS_VSIX" ]; then
   EXT_ID="harness-inc.harness-vscode"
   if ! code --list-extensions 2>/dev/null | grep -qi "$EXT_ID"; then
-    echo "[post-start] Installing Harness AI Chatbot extension..."
+    echo "[post-start] Installing Harness AI Chatbot extension from $HARNESS_VSIX..."
     code --install-extension "$HARNESS_VSIX" --force 2>&1 && \
       echo "✓ Harness AI Chatbot installed" || \
       echo "✗ Harness AI Chatbot installation failed"
   else
     echo "✓ Harness AI Chatbot already installed"
   fi
+else
+  echo "✗ Harness VSIX not found in plugins/ — skipping"
 fi
 
 # MCP config auto-generation (probe sidecars, fallback to stdio)
@@ -92,7 +102,7 @@ docker network create mcp-net 2>/dev/null || true
 echo "[post-start] generating MCP configs (auto-detect sidecars)..."
 if [ -f /workspace/ai-dev-platform/scripts/generate-mcp-configs.sh ]; then
   /workspace/ai-dev-platform/scripts/generate-mcp-configs.sh \
-    --mode auto "${PROJECT_PROFILE:-all}" /workspace 2>&1 | sed 's/^/  /'
+    --mode auto "${PROJECT_PROFILE:-all}" "$PROJECT_DIR" 2>&1 | sed 's/^/  /'
 else
   echo "  WARN: ai-dev-platform not found, using existing MCP configs"
 fi

@@ -1,0 +1,170 @@
+version: "3"
+
+vars:
+  PROJECT: "ai-agentic-demo"
+
+tasks:
+  # ─── Default ──────────────────────────────────────────────────────────────
+
+  default:
+    desc: "Show available tasks"
+    cmds: [task --list-all]
+
+  # ─── Development ──────────────────────────────────────────────────────────
+
+  dev:up:
+    desc: "Start development environment"
+    cmds:
+      - docker compose -f .devcontainer/docker-compose.devcontainer.yml up -d
+
+  dev:down:
+    desc: "Stop development environment"
+    cmds:
+      - docker compose -f .devcontainer/docker-compose.devcontainer.yml down
+
+  dev:rebuild:
+    desc: "Rebuild development container (pull latest image)"
+    cmds:
+      - docker compose -f .devcontainer/docker-compose.devcontainer.yml pull
+      - docker compose -f .devcontainer/docker-compose.devcontainer.yml up -d --force-recreate
+
+  dev:shell:
+    desc: "Open a shell in the running container"
+    cmds:
+      - docker exec -it {{.PROJECT}} bash
+
+  # ─── Quality ──────────────────────────────────────────────────────────────
+
+  quality:lint:
+    desc: "Run linter"
+    cmds:
+      - echo "Configure linter for your stack"
+
+  quality:format:
+    desc: "Run formatter"
+    cmds:
+      - echo "Configure formatter for your stack"
+
+  quality:all:
+    desc: "Run all quality checks"
+    deps: [quality:lint, quality:format]
+
+  # ─── Testing ──────────────────────────────────────────────────────────────
+
+  test:unit:
+    desc: "Run unit tests"
+    cmds:
+      - echo "Configure test runner for your stack"
+
+  test:all:
+    desc: "Run all tests"
+    deps: [test:unit]
+
+  # ─── AI Environment ──────────────────────────────────────────────────────
+
+  ai:health:
+    desc: "Check AI environment health (post-start validations)"
+    cmds:
+      - bash .devcontainer/scripts/devcontainer/post-start.sh
+
+  ai:verify:
+    desc: "Full AI stack verification (Claude Code + opencode + MCP)"
+    cmds:
+      - |
+        echo "=== Claude Code ==="
+        command -v claude >/dev/null 2>&1 && echo "✓ claude found" || echo "✗ claude not found"
+        echo ""
+        echo "=== opencode ==="
+        command -v opencode >/dev/null 2>&1 && echo "✓ opencode found" || echo "✗ opencode not found"
+        echo ""
+        echo "=== MCP Config ==="
+        [ -f .mcp.json ] && echo "✓ .mcp.json exists ($(jq '.mcpServers | keys | length' .mcp.json) servers)" || echo "✗ .mcp.json missing"
+        [ -f opencode.json ] && echo "✓ opencode.json exists" || echo "✗ opencode.json missing"
+        echo ""
+        echo "=== API Keys ==="
+        [ -n "$HARNESS_API_KEY" ] && echo "✓ HARNESS_API_KEY set" || echo "✗ HARNESS_API_KEY missing"
+        [ -n "$GITHUB_PERSONAL_ACCESS_TOKEN" ] && echo "✓ GITHUB_PERSONAL_ACCESS_TOKEN set" || echo "✗ GITHUB_PERSONAL_ACCESS_TOKEN missing"
+        [ -n "$PERPLEXITY_API_KEY" ] && echo "✓ PERPLEXITY_API_KEY set" || echo "✗ PERPLEXITY_API_KEY missing"
+        [ -n "$GOOGLE_API_KEY" ] && echo "✓ GOOGLE_API_KEY set (opencode)" || echo "✗ GOOGLE_API_KEY missing (opencode won't work)"
+        echo ""
+        echo "=== Vertex AI ==="
+        if [ "$CLAUDE_CODE_USE_VERTEX" = "1" ]; then
+          gcloud auth print-access-token >/dev/null 2>&1 && echo "✓ gcloud auth OK" || echo "✗ gcloud auth failed"
+          [ -n "$ANTHROPIC_VERTEX_PROJECT_ID" ] && echo "✓ ANTHROPIC_VERTEX_PROJECT_ID set" || echo "✗ ANTHROPIC_VERTEX_PROJECT_ID missing"
+        else
+          echo "- Vertex AI not configured (using direct API)"
+        fi
+
+  ai:claude:
+    desc: "Start Claude Code interactive session"
+    cmds:
+      - claude
+
+  ai:opencode:
+    desc: "Start opencode interactive session (free Gemini models)"
+    cmds:
+      - opencode
+
+  ai:mcp-audit:
+    desc: "Show recent MCP audit log entries"
+    cmds:
+      - "cat .mcp-audit.log 2>/dev/null | tail -20 || echo 'No MCP audit log found'"
+
+  ai:mcp-regen:
+    desc: "Regenerate MCP configs (requires ai-dev-platform clone)"
+    vars:
+      PLATFORM_DIR: '{{.PLATFORM_DIR | default "../ai-dev-platform"}}'
+    cmds:
+      - "{{.PLATFORM_DIR}}/scripts/generate-mcp-configs.sh {{PROJECT_PROFILE}} ."
+
+  ai:mcp-check:
+    desc: "Validate MCP config files exist and show server count"
+    cmds:
+      - |
+        echo "=== MCP Configs ==="
+        for f in .mcp.json opencode.json .cursor/mcp.json .devcontainer/mcp-servers.json; do
+          if [ -f "$f" ]; then
+            echo "✓ $f"
+          else
+            echo "✗ $f (missing)"
+          fi
+        done
+
+  # ─── Infrastructure ──────────────────────────────────────────────────────
+
+  infra:verify:
+    desc: "Verify infrastructure toolchain (kubectl, terraform, gcloud, helm, aws)"
+    cmds:
+      - |
+        echo "=== Infrastructure Tools ==="
+        for cmd in kubectl terraform gcloud helm aws docker; do
+          if command -v "$cmd" >/dev/null 2>&1; then
+            ver=$("$cmd" version --short 2>/dev/null || "$cmd" version 2>/dev/null | head -1 || "$cmd" --version 2>/dev/null | head -1 || echo "installed")
+            echo "✓ $cmd — $ver"
+          else
+            echo "✗ $cmd not found"
+          fi
+        done
+
+  infra:k8s-ctx:
+    desc: "Show current Kubernetes context and namespaces"
+    cmds:
+      - kubectl config current-context
+      - kubectl get ns --no-headers 2>/dev/null | head -5 || echo "No cluster access"
+
+  infra:tf-init:
+    desc: "Initialize Terraform in current directory"
+    cmds:
+      - terraform init
+
+  infra:tf-plan:
+    desc: "Run Terraform plan"
+    cmds:
+      - terraform plan
+
+  # ─── Cleanup ──────────────────────────────────────────────────────────────
+
+  clean:
+    desc: "Clean build artifacts"
+    cmds:
+      - echo "Configure clean targets for your stack"

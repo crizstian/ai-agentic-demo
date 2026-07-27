@@ -45,7 +45,7 @@
       "args": [
         "-y",
         "mcp-obsidian",
-        "/workspace/obsidian"
+        "/home/devuser/obsidian"
       ],
       "env": {}
     },

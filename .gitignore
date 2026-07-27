@@ -1,10 +1,12 @@
-# Secrets
-.devcontainer/.env
-.devcontainer/plugins/
-.claude/settings.local.json
-
-# MCP audit log
-.mcp-audit.log
+# ai-dev-platform scaffold
+.claude/
+.cursor/
+.devcontainer/
+.github/
+.harness/
+.mcp.json
+opencode.json
+Taskfile.yml
 
 # OS
 .DS_Store
@@ -25,3 +27,16 @@ node_modules/
 __pycache__/
 *.pyc
 .venv/
+
+# ai-dev-platform
+# ai-dev-platform scaffold
+
+# OS
+
+# IDE
+
+# Node
+
+# Go
+
+# Python

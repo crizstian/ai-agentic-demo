@@ -2,7 +2,7 @@
   "name": "ai-agentic-demo",
   "dockerComposeFile": ["docker-compose.devcontainer.yml"],
   "service": "ai-agentic-demo",
-  "workspaceFolder": "/workspace",
+  "workspaceFolder": "/workspace/ai-agentic-demo",
   "customizations": {
     "vscode": {
       "extensions": [
@@ -47,6 +47,6 @@
     "PATH": "/usr/local/go/bin:/home/devuser/go/bin:${containerEnv:PATH}"
   },
   "remoteUser": "devuser",
-  "postCreateCommand": "bash /workspace/.devcontainer/scripts/devcontainer/post-create.sh",
-  "postStartCommand": "bash /workspace/.devcontainer/scripts/devcontainer/post-start.sh"
+  "postCreateCommand": "bash .devcontainer/scripts/devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/devcontainer/post-start.sh"
 }
