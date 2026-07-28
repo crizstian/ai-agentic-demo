@@ -1,3 +1,4 @@
+import re
 import subprocess
 
 from flask import Blueprint, jsonify, request
@@ -11,7 +12,6 @@ def ping():
     host = request.args.get("host", "localhost")
 
     # Validate host input - only allow alphanumeric, dots, and hyphens
-    import re
     if not re.match(r'^[a-zA-Z0-9.-]+$', host):
         return jsonify({"error": "Invalid host parameter"}), 400
 

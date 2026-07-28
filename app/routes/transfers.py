@@ -29,7 +29,7 @@ def create_transfer():
     db = get_db()
     cursor = db.execute(
         "INSERT INTO transactions (from_account, to_account, amount, memo, status) VALUES (?, ?, ?, ?, ?)",
-        [from_account, to_account, amount, memo or "", "completed"],
+        [from_account, to_account, amount_float, memo or "", "completed"],
     )
     db.commit()
     return jsonify(
