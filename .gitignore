@@ -8,3 +8,33 @@ test-results/
 .env
 coverage/
 .DS_Store
+
+# ai-dev-platform
+# ai-dev-platform scaffold (local only — do not push)
+.devcontainer/
+.claude/
+.cursor/
+.github/
+.harness/
+.vscode/
+.mcp.json
+opencode.json
+Taskfile.yml
+
+# MCP audit log
+.mcp-audit.log
+
+# OS
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Node
+
+# Go
+/vendor/
+
+# Python
