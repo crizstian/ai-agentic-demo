@@ -22,12 +22,22 @@ def statements():
             }
         )
 
-    # Resolve the path and verify it stays inside the allowed directory.
+    # FIXED: Path traversal vulnerability - using os.path.commonpath for robust path validation
     base = os.path.realpath(STATEMENTS_DIR)
     file_path = os.path.realpath(os.path.join(base, file))
-    if not file_path.startswith(base + os.sep):
+
+    # Verify the resolved path is within the allowed directory
+    try:
+        common_path = os.path.commonpath([base, file_path])
+        if common_path != base:
+            return jsonify({"error": "Invalid file path"}), 400
+    except ValueError:
+        # Different drives on Windows or other path mismatch
         return jsonify({"error": "Invalid file path"}), 400
+
     if not os.path.exists(file_path):
         return jsonify({"error": "Statement file not found"}), 404
+    if not os.path.isfile(file_path):
+        return jsonify({"error": "Invalid file path"}), 400
 
     return send_file(file_path, as_attachment=True)

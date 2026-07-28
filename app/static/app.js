@@ -24,21 +24,44 @@ document.addEventListener("DOMContentLoaded", function () {
       .then((result) => {
         const resultDiv = document.getElementById("transfer-result");
         if (result.success) {
-          // DEMO UX BUG: shows success even for invalid (negative/zero) amounts
-          resultDiv.innerHTML =
-            '<div class="alert alert-success" style="font-size:18px;font-weight:800;padding:24px;">✅ Transfer completed successfully!<br>Amount transferred: <strong>$' +
-            result.amount +
-            '</strong><br><span style="font-size:12px;color:#276749;">Transaction ID: ' +
-            result.transferId +
-            "</span></div>";
+          // FIXED: DOM XSS vulnerability - using textContent instead of innerHTML
+          const successDiv = document.createElement("div");
+          successDiv.className = "alert alert-success";
+          successDiv.style.fontSize = "18px";
+          successDiv.style.fontWeight = "800";
+          successDiv.style.padding = "24px";
+
+          successDiv.textContent = "✅ Transfer completed successfully!\nAmount transferred: $";
+
+          const amountStrong = document.createElement("strong");
+          amountStrong.textContent = String(result.amount);
+          successDiv.appendChild(amountStrong);
+
+          const txIdSpan = document.createElement("span");
+          txIdSpan.style.fontSize = "12px";
+          txIdSpan.style.color = "#276749";
+          txIdSpan.textContent = "\nTransaction ID: " + String(result.transferId);
+          successDiv.appendChild(txIdSpan);
+
+          resultDiv.innerHTML = "";
+          resultDiv.appendChild(successDiv);
         } else {
-          resultDiv.innerHTML =
-            '<div class="alert alert-error">Error: ' + result.error + "</div>";
+          // FIXED: DOM XSS vulnerability - using textContent instead of innerHTML
+          const errorDiv = document.createElement("div");
+          errorDiv.className = "alert alert-error";
+          errorDiv.textContent = "Error: " + String(result.error);
+          resultDiv.innerHTML = "";
+          resultDiv.appendChild(errorDiv);
         }
       })
       .catch(() => {
-        document.getElementById("transfer-result").innerHTML =
-          '<div class="alert alert-error">Transfer request failed.</div>';
+        // FIXED: DOM XSS vulnerability - using textContent instead of innerHTML
+        const resultDiv = document.getElementById("transfer-result");
+        const errorDiv = document.createElement("div");
+        errorDiv.className = "alert alert-error";
+        errorDiv.textContent = "Transfer request failed.";
+        resultDiv.innerHTML = "";
+        resultDiv.appendChild(errorDiv);
       });
   });
 });
