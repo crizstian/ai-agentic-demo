@@ -1,0 +1,51 @@
+{
+  "harness": {
+    "command": "harness-mcp-v2",
+    "args": [],
+    "env": {
+      "HARNESS_API_KEY": "${containerEnv:HARNESS_API_KEY}",
+      "HARNESS_ACCOUNT_ID": "${containerEnv:HARNESS_ACCOUNT_ID}",
+      "HARNESS_ORG": "${containerEnv:HARNESS_ORG}",
+      "HARNESS_PROJECT": "${containerEnv:HARNESS_PROJECT}",
+      "HARNESS_BASE_URL": "${containerEnv:HARNESS_BASE_URL}",
+      "HARNESS_TOOLSETS": "${containerEnv:HARNESS_TOOLSETS}",
+      "HARNESS_AUTO_APPROVE_RISK": "${containerEnv:HARNESS_AUTO_APPROVE_RISK}",
+      "HARNESS_PIPELINE_VERSION": "${containerEnv:HARNESS_PIPELINE_VERSION}",
+      "HARNESS_API_TIMEOUT_MS": "${containerEnv:HARNESS_API_TIMEOUT_MS}",
+      "LOG_LEVEL": "${containerEnv:LOG_LEVEL}"
+    }
+  },
+  "docker": {
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "-v",
+      "/var/run/docker.sock:/var/run/docker.sock",
+      "docker/mcp-gateway"
+    ],
+    "env": {}
+  },
+  "terraform": {
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "hashicorp/terraform-mcp-server:latest"
+    ],
+    "env": {}
+  },
+  "grafana": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@grafana/mcp-grafana"
+    ],
+    "env": {
+      "GRAFANA_URL": "${containerEnv:GRAFANA_URL}",
+      "GRAFANA_API_KEY": "${containerEnv:GRAFANA_API_KEY}"
+    }
+  }
+}

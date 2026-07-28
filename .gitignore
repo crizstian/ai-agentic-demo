@@ -8,3 +8,27 @@ test-results/
 .env
 coverage/
 .DS_Store
+
+# ai-dev-platform
+# Secrets
+.devcontainer/.env
+.devcontainer/plugins/
+.claude/settings.local.json
+
+# MCP audit log
+.mcp-audit.log
+
+# OS
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Node
+
+# Go
+/vendor/
+
+# Python

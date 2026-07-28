@@ -1,0 +1,89 @@
+{
+  "mcpServers": {
+    "harness": {
+      "type": "stdio",
+      "command": "harness-mcp-v2",
+      "args": [],
+      "env": {
+        "HARNESS_API_KEY": "${HARNESS_API_KEY}",
+        "HARNESS_ACCOUNT_ID": "${HARNESS_ACCOUNT_ID}",
+        "HARNESS_ORG": "${HARNESS_ORG}",
+        "HARNESS_PROJECT": "${HARNESS_PROJECT}",
+        "HARNESS_BASE_URL": "${HARNESS_BASE_URL}",
+        "HARNESS_TOOLSETS": "${HARNESS_TOOLSETS}",
+        "HARNESS_AUTO_APPROVE_RISK": "${HARNESS_AUTO_APPROVE_RISK}",
+        "HARNESS_PIPELINE_VERSION": "${HARNESS_PIPELINE_VERSION}",
+        "HARNESS_API_TIMEOUT_MS": "${HARNESS_API_TIMEOUT_MS}",
+        "LOG_LEVEL": "${LOG_LEVEL}"
+      }
+    },
+    "github": {
+      "type": "http",
+      "url": "http://mcp-github:8000/mcp"
+    },
+    "perplexity": {
+      "type": "http",
+      "url": "http://mcp-perplexity:8000/mcp"
+    },
+    "obsidian": {
+      "type": "http",
+      "url": "http://mcp-obsidian:8000/mcp"
+    },
+    "kubernetes": {
+      "type": "http",
+      "url": "http://mcp-kubernetes:8000/mcp"
+    },
+    "chrome": {
+      "type": "http",
+      "url": "http://mcp-chrome:8000/mcp"
+    },
+    "docker": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "docker/mcp-gateway"
+      ],
+      "env": {}
+    },
+    "terraform": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "hashicorp/terraform-mcp-server:latest"
+      ],
+      "env": {}
+    },
+    "grafana": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@grafana/mcp-grafana"
+      ],
+      "env": {
+        "GRAFANA_URL": "${GRAFANA_URL}",
+        "GRAFANA_API_KEY": "${GRAFANA_API_KEY}"
+      }
+    },
+    "coworker": {
+      "type": "http",
+      "url": "https://odin.coworker.ai/mcp"
+    },
+    "harness-docs": {
+      "type": "http",
+      "url": "https://hdh.mcp.kapa.ai"
+    },
+    "gitlab": {
+      "type": "http",
+      "url": "${GITLAB_MCP_URL:-https://gitlab.example.com/-/mcp}"
+    }
+  }
+}
