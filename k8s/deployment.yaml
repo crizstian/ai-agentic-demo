@@ -9,8 +9,9 @@ metadata:
 spec:
   replicas: {{ .Values.replicas }}
 
-  # Demo: make the rollout fail fast instead of waiting the default 10 minutes
-  progressDeadlineSeconds: 20
+  # Allow sufficient time for image pull, container startup, and readiness checks
+  # while still being faster than the default 10 minutes (600s)
+  progressDeadlineSeconds: 120
   minReadySeconds: 0
 
   selector:
