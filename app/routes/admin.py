@@ -5,19 +5,17 @@ from flask import Blueprint, jsonify, request
 admin_bp = Blueprint("admin", __name__)
 
 
-# DEMO VULNERABILITY: command injection via user-controlled host parameter (VULN-002)
-# Do not fix — required for Semgrep SAST demo finding demo-bank-command-injection
+# SECURITY FIX: Use allowlist to prevent command injection (VULN-002)
 @admin_bp.route("/ping", methods=["GET"])
 def ping():
     host = request.args.get("host", "localhost")
 
-    # Intentionally unsafe: user-controlled input passed directly to the shell
-    cmd = "echo 'Pinging: " + host + "'"
-    try:
-        stdout = subprocess.check_output(cmd, shell=True, text=True)
-    except subprocess.CalledProcessError:
-        return jsonify({"error": "Ping failed"}), 500
-    return jsonify({"result": stdout.strip(), "host": host})
+    # Safe: validate host against allowlist before processing
+    allowed_hosts = ["localhost", "127.0.0.1"]
+    if host not in allowed_hosts:
+        return jsonify({"error": "Invalid host"}), 400
+
+    return jsonify({"result": f"Pinging: {host}", "host": host})
 
 
 @admin_bp.route("/status", methods=["GET"])
