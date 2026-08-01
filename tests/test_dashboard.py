@@ -24,3 +24,14 @@ def test_pay_bill_returns_200(client):
 def test_login_returns_200(client):
     res = client.get("/login")
     assert res.status_code == 200
+
+
+def test_quick_action_cards_are_not_rotated_or_offset(client):
+    # Regression guard for HD-200690: dashboard quick-action cards must render
+    # upright and aligned. Decorative rotate()/translateY() transforms on the
+    # .action-card:nth-child rules made them overlap and look broken.
+    res = client.get("/styles.css")
+    assert res.status_code == 200
+    css = res.get_data(as_text=True)
+    assert ".action-card:nth-child" not in css
+    assert "rotate(" not in css
