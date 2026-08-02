@@ -112,7 +112,6 @@ body {
 }
 
 /* Quick actions */
-/* DEMO UX BUG: cards are randomly rotated and overlapping — looks completely broken */
 .quick-actions {
   display: flex;
   gap: 16px;
@@ -129,18 +128,6 @@ body {
   min-width: 160px;
   flex: 1;
   transition: box-shadow 0.2s;
-}
-
-.action-card:nth-child(2) {
-  transform: rotate(15deg) translateY(30px);
-}
-
-.action-card:nth-child(3) {
-  transform: rotate(-10deg) translateY(-20px);
-}
-
-.action-card:nth-child(4) {
-  transform: rotate(8deg) translateY(40px);
 }
 
 .action-card:hover {
