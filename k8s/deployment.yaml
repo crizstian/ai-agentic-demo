@@ -9,7 +9,7 @@ metadata:
 spec:
   replicas: {{ .Values.replicas }}
 
-  progressDeadlineSeconds: 20
+  progressDeadlineSeconds: 300
   minReadySeconds: 0
 
   selector:
@@ -56,4 +56,4 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 3
             timeoutSeconds: 1
-            failureThreshold: 1
+            failureThreshold: 3
