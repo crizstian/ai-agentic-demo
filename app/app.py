@@ -26,7 +26,10 @@ def create_app():
     # (Express did not 308-redirect on a missing trailing slash).
     app.url_map.strict_slashes = False
 
-    CORS(app, origins=["http://localhost:3000", "http://localhost:5000"])
+    allowed_origins = os.environ.get(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5000"
+    ).split(",")
+    CORS(app, origins=[o.strip() for o in allowed_origins])
 
     # API blueprints
     app.register_blueprint(accounts_bp, url_prefix="/api/accounts")
