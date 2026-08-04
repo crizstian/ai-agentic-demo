@@ -54,7 +54,7 @@ spec:
           # readinessProbe points to /healthz, which does not exist.
           # Correct path should be /health.
           # This will make the Pod stay NotReady and the Deployment fail fast
-          # because of progressDeadlineSeconds.
+          # because of progressDeadlineSeconds. - touch KV
           readinessProbe:
             httpGet:
               path: /healthz
