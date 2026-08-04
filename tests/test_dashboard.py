@@ -24,3 +24,14 @@ def test_pay_bill_returns_200(client):
 def test_login_returns_200(client):
     res = client.get("/login")
     assert res.status_code == 200
+
+
+def test_quick_action_cards_are_not_rotated(client):
+    """Regression for HD-200712: quick-action/transaction button cards must not
+    carry the rotate()/translateY() transforms that made them overlap and appear
+    misaligned on the dashboard."""
+    res = client.get("/styles.css")
+    assert res.status_code == 200
+    css = res.get_data(as_text=True)
+    assert "rotate(" not in css
+    assert ".action-card:nth-child" not in css
