@@ -5,8 +5,6 @@ from ..db import get_db
 transfers_bp = Blueprint("transfers", __name__)
 
 
-# DEMO VULNERABILITY: weak validation — allows zero/negative amounts and arbitrary memo/account IDs (VULN-002 partial)
-# Do not fix — this is the UX bug users complain about in Slack
 @transfers_bp.route("/", methods=["POST"])
 def create_transfer():
     body = request.get_json(silent=True) or request.form
@@ -15,9 +13,16 @@ def create_transfer():
     amount = body.get("amount")
     memo = body.get("memo")
 
-    # Intentionally weak validation: no check for negative/zero amounts
     if not from_account or not to_account or amount is None:
         return jsonify({"error": "Missing required fields"}), 400
+
+    try:
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid amount"}), 400
+
+    if amount <= 0:
+        return jsonify({"error": "Amount must be greater than zero"}), 400
 
     db = get_db()
     cursor = db.execute(

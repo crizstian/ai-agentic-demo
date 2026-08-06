@@ -23,17 +23,21 @@ document.addEventListener("DOMContentLoaded", function () {
       .then((res) => res.json())
       .then((result) => {
         const resultDiv = document.getElementById("transfer-result");
+        const esc = (v) => {
+          const d = document.createElement("div");
+          d.appendChild(document.createTextNode(String(v)));
+          return d.innerHTML;
+        };
         if (result.success) {
-          // DEMO UX BUG: shows success even for invalid (negative/zero) amounts
           resultDiv.innerHTML =
             '<div class="alert alert-success" style="font-size:18px;font-weight:800;padding:24px;">✅ Transfer completed successfully!<br>Amount transferred: <strong>$' +
-            result.amount +
+            esc(result.amount) +
             '</strong><br><span style="font-size:12px;color:#276749;">Transaction ID: ' +
-            result.transferId +
+            esc(result.transferId) +
             "</span></div>";
         } else {
           resultDiv.innerHTML =
-            '<div class="alert alert-error">Error: ' + result.error + "</div>";
+            '<div class="alert alert-error">Error: ' + esc(result.error) + "</div>";
         }
       })
       .catch(() => {
