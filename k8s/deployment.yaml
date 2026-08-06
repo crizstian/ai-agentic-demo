@@ -50,14 +50,9 @@ spec:
             timeoutSeconds: 1
             failureThreshold: 3
 
-          # DEMO INTENTIONAL BUG:
-          # readinessProbe points to /healthz, which does not exist.
-          # Correct path should be /health.
-          # This will make the Pod stay NotReady and the Deployment fail fast
-          # because of progressDeadlineSeconds.
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 5
             periodSeconds: 3
