@@ -22,9 +22,22 @@ def create_app():
         template_folder="templates",
     )
 
-    # Serve /api/fx and /api/fx/ identically, matching the Node app's routing
-    # (Express did not 308-redirect on a missing trailing slash).
     app.url_map.strict_slashes = False
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; "
+            "object-src 'none'; "
+            "frame-ancestors 'none'"
+        )
+        return response
 
     allowed_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
     CORS(app, origins=allowed_origins)

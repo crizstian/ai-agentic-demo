@@ -1,11 +1,16 @@
 import os
+import sys
 
-# Secrets are loaded from environment variables (or a secrets manager), never
-# hardcoded. Demo-only fallbacks are used when the env vars are unset so the app
-# still boots locally.
-JWT_SECRET = os.environ.get("JWT_SECRET", "demo-only-fallback-change-me")
-API_KEY = os.environ.get("API_KEY", "demo-only-fallback-change-me")
-ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "demo-only-fallback-change-me")
+JWT_SECRET = os.environ.get("JWT_SECRET", "")
+API_KEY = os.environ.get("API_KEY", "")
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "")
+
+if not JWT_SECRET or not API_KEY or not ACCESS_TOKEN:
+    print(
+        "WARNING: JWT_SECRET, API_KEY, and ACCESS_TOKEN must be set via environment "
+        "variables or a secrets manager. Running without them is insecure.",
+        file=sys.stderr,
+    )
 
 config = {
     "port": int(os.environ.get("PORT", 3000)),
@@ -15,4 +20,5 @@ config = {
     "access_token": ACCESS_TOKEN,
     "app_name": "DemoBank AI SDLC",
     "demo_mode": True,
+    "container_mode": os.environ.get("CONTAINER_MODE", "false").lower() == "true",
 }

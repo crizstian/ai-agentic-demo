@@ -25,6 +25,13 @@ def create_transfer():
         return jsonify({"error": "Amount must be greater than zero"}), 400
 
     db = get_db()
+
+    src = db.execute(
+        "SELECT id FROM accounts WHERE id = ?", (from_account,)
+    ).fetchone()
+    if src is None:
+        return jsonify({"error": "Source account not found"}), 404
+
     cursor = db.execute(
         "INSERT INTO transactions (from_account, to_account, amount, memo, status) VALUES (?, ?, ?, ?, ?)",
         [from_account, to_account, amount, memo or "", "completed"],

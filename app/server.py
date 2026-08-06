@@ -7,9 +7,10 @@ app = create_app()
 
 
 def main():
+    bind_host = "0.0.0.0" if config.get("container_mode") else "127.0.0.1"
     print(f"DemoBank AI SDLC running on http://localhost:{config['port']}")
     print("WARNING: This app is intentionally vulnerable. DEMO USE ONLY.")
-    app.run(host="0.0.0.0", port=config["port"])
+    app.run(host=bind_host, port=config["port"], debug=False)
 
 
 if __name__ == "__main__":
