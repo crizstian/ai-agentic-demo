@@ -1,5 +1,3 @@
-import subprocess
-
 from flask import Blueprint, jsonify, request
 
 admin_bp = Blueprint("admin", __name__)
@@ -8,12 +6,7 @@ admin_bp = Blueprint("admin", __name__)
 @admin_bp.route("/ping", methods=["GET"])
 def ping():
     host = request.args.get("host", "localhost")
-
-    try:
-        stdout = subprocess.check_output(["echo", f"Pinging: {host}"], text=True)
-    except subprocess.CalledProcessError:
-        return jsonify({"error": "Ping failed"}), 500
-    return jsonify({"result": stdout.strip(), "host": host})
+    return jsonify({"result": f"Pinging: {host}", "host": host})
 
 
 @admin_bp.route("/status", methods=["GET"])
