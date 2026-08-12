@@ -1,0 +1,73 @@
+execution_url: "https://app.harness.io/ng/#/account/EeRjnXTnS4GrLG5VNNJZUw/ci/orgs/sandbox/projects/luisredda/pipelines/Kubernetes_Remediation/executions/f5Ly8b-fR6i7hvJKNPKsAw/pipeline"
+
+analysis:
+  failed_stage: "AI Agentic Remediation"
+  failed_step: "Agents"
+  failed_step_type: "Agent (Kubernetes Agent Step)"
+  failure_type: "Readiness Probe Failure / Deployment Progress Deadline Exceeded"
+  root_cause: |
+    The readiness probe in k8s/deployment.yaml pointed to /healthz, which does not
+    exist on the harnessbank-demo application. The correct health endpoint is /health.
+    With progressDeadlineSeconds set to 20, the Deployment failed fast because pods
+    never became Ready, causing K8s to mark the rollout as failed.
+  confidence: "high"
+  evidence:
+    - "deployment.yaml comment: '# DEMO INTENTIONAL BUG: readinessProbe points to /healthz, which does not exist. Correct path should be /health.'"
+    - "progressDeadlineSeconds: 20 causes the rollout to time out quickly when pods remain NotReady"
+    - "livenessProbe correctly uses /health — only readinessProbe was wrong"
+    - "Pod stays NotReady -> Deployment progress deadline exceeded -> K8s rolls back"
+
+correlated_files:
+  - file: "k8s/deployment.yaml"
+    reason: "Contains the readiness probe misconfiguration on the harnessbank-demo container"
+  - file: "k8s/values.yaml"
+    reason: "Defines containerPort (3000) used by both liveness and readiness probes; port is correct"
+
+changes_applied:
+  - file: "k8s/deployment.yaml"
+    change: "Fix readiness probe path from /healthz to /health"
+    before: |
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: {{ .Values.containerPort }}
+        initialDelaySeconds: 5
+        periodSeconds: 3
+        timeoutSeconds: 1
+        failureThreshold: 1
+    after: |
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: {{ .Values.containerPort }}
+        initialDelaySeconds: 5
+        periodSeconds: 3
+        timeoutSeconds: 1
+        failureThreshold: 1
+    rationale: |
+      The application exposes /health as its health check endpoint (confirmed by the
+      livenessProbe which was already correct). Aligning the readinessProbe to /health
+      allows Kubernetes to detect when the container is ready to serve traffic, unblocking
+      the Deployment rollout within the 20-second progressDeadlineSeconds window.
+
+validation:
+  commands_run:
+    - "Reviewed YAML structure and Go template syntax — no issues"
+    - "Compared readinessProbe.httpGet.path against livenessProbe.httpGet.path (both now /health)"
+    - "Confirmed containerPort value (3000) in values.yaml is unchanged"
+    - "No helm template or kubectl dry-run available in this sandboxed agent environment"
+  results:
+    - "YAML is syntactically valid"
+    - "Probe paths are now consistent between liveness and readiness"
+    - "No other fields were modified"
+
+pull_request:
+  created: true
+  url: ""
+  branch: "harness/manifest-remediation-fix1"
+
+next_steps:
+  - "Merge this PR and trigger a new Harness CD deployment for harnessbank-demo"
+  - "Verify the pod becomes Ready within the progressDeadlineSeconds window (20s) after deploy"
+  - "If pods still fail, increase progressDeadlineSeconds or initialDelaySeconds to allow more startup time"
+  - "Consider raising progressDeadlineSeconds to 120s or more in production to avoid false-positive rollout failures"
