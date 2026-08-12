@@ -12,6 +12,10 @@ from .routes.transfers import transfers_bp
 
 APP_NAME = "DemoBank AI SDLC"
 
+ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS", "http://localhost:3000"
+).split(",")
+
 
 def create_app():
     app = Flask(
@@ -25,9 +29,7 @@ def create_app():
     # (Express did not 308-redirect on a missing trailing slash).
     app.url_map.strict_slashes = False
 
-    # DEMO VULNERABILITY: insecure CORS wildcard (VULN-007)
-    # Do not fix — required for Semgrep SAST demo finding demo-bank-insecure-cors
-    CORS(app, origins="*")
+    CORS(app, origins=ALLOWED_ORIGINS)
 
     # API blueprints
     app.register_blueprint(accounts_bp, url_prefix="/api/accounts")
@@ -82,15 +84,13 @@ def create_app():
         # Demo: accept any credentials
         return redirect("/")
 
-    # DEMO VULNERABILITY: reflected XSS — query param reflected directly into HTML (VULN-006)
-    # Do not fix — required for Semgrep SAST demo finding demo-bank-reflected-xss
     @app.route("/welcome")
     def welcome():
-        name = request.args.get("name", "Guest")
+        from markupsafe import escape
+        name = escape(request.args.get("name", "Guest"))
         return (
-            "<html><body><h1>Welcome to DemoBank, "
-            + request.args.get("name", "")
-            + "!</h1><p>This is a demo application.</p></body></html>"
+            f"<html><body><h1>Welcome to DemoBank, {name}"
+            "!</h1><p>This is a demo application.</p></body></html>"
         )
 
     # Health endpoint — correct path for liveness/readiness
