@@ -1,11 +1,17 @@
 import os
+import warnings
 
-# Secrets are loaded from environment variables (or a secrets manager), never
-# hardcoded. Demo-only fallbacks are used when the env vars are unset so the app
-# still boots locally.
-JWT_SECRET = os.environ.get("JWT_SECRET", "demo-only-fallback-change-me")
-API_KEY = os.environ.get("API_KEY", "demo-only-fallback-change-me")
-ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN", "demo-only-fallback-change-me")
+JWT_SECRET = os.environ.get("JWT_SECRET")
+API_KEY = os.environ.get("API_KEY")
+ACCESS_TOKEN = os.environ.get("ACCESS_TOKEN")
+
+if not JWT_SECRET or not API_KEY or not ACCESS_TOKEN:
+    warnings.warn(
+        "One or more required secrets (JWT_SECRET, API_KEY, ACCESS_TOKEN) are not set. "
+        "This application must not be deployed to production without these values.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 config = {
     "port": int(os.environ.get("PORT", 3000)),
