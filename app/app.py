@@ -14,6 +14,16 @@ APP_NAME = "DemoBank AI SDLC"
 
 
 def create_app():
+    """
+    Flask application factory for DemoBank AI SDLC.
+
+    Creates and configures the Flask application with intentional vulnerabilities
+    for SAST demonstration purposes. Registers blueprints for accounts, transfers,
+    statements, admin, and fx routes.
+
+    Returns:
+        Flask: Configured Flask application instance
+    """
     app = Flask(
         __name__,
         static_folder="static",
