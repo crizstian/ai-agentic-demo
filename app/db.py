@@ -21,7 +21,7 @@ def init_db():
     database.execute(
         """
         CREATE TABLE IF NOT EXISTS accounts (
-          id TEXT PRIMARY KEY,
+          id INTEGER PRIMARY KEY,
           owner TEXT NOT NULL,
           balance REAL NOT NULL DEFAULT 0,
           type TEXT NOT NULL DEFAULT 'checking'
@@ -32,8 +32,8 @@ def init_db():
         """
         CREATE TABLE IF NOT EXISTS transactions (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          from_account TEXT,
-          to_account TEXT,
+          from_account INTEGER,
+          to_account INTEGER,
           amount REAL NOT NULL,
           memo TEXT,
           status TEXT DEFAULT 'completed',
