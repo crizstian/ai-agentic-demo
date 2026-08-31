@@ -15,10 +15,10 @@ service:
               store:
                 type: Github
                 spec:
-                  connectorRef: org.Cristian_GH
+                  connectorRef: CristianConnector
                   repoName: ai-agentic-demo
                   gitFetchType: Branch
-                  branch: secops/ai-agentic-demo
+                  branch: secops/ai-agentic-demo-main
                   paths:
                     - deploy/k8s/mcp-financial-data/deployment.yaml
                     - deploy/k8s/mcp-financial-data/service.yaml

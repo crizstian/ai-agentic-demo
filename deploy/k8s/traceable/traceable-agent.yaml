@@ -69,5 +69,5 @@ metadata:
   namespace: harnessbank-demo
 type: Opaque
 stringData:
-  reporting-endpoint: "https://app.traceable.ai"
+  reporting-endpoint: "https://app.us9.traceable.ai"
   api-token: "<REPLACE_WITH_TRACEABLE_TOKEN>"

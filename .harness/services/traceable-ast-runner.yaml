@@ -28,7 +28,7 @@ service:
         - name: TRACEABLE_PLATFORM_URL
           type: String
           description: "Traceable platform API URL"
-          value: https://api.traceable.ai
+          value: https://api.us9.traceable.ai
         - name: TRACEABLE_ENVIRONMENT
           type: String
           description: "Environment name matching TPA config"
