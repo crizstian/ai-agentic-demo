@@ -1,0 +1,133 @@
+# Apigee API Proxy Specification for DemoBank
+# This defines what Apigee knows about — and critically, what it DOESN'T know about
+
+apiVersion: apigee.google.com/v1
+kind: APIProxy
+metadata:
+  name: demobank-api
+  namespace: apigee
+spec:
+  displayName: "DemoBank API"
+  description: "DemoBank public API proxy"
+  basePath: /api
+  target:
+    url: http://harnessbank-demo.harnessbank-demo.svc.cluster.local
+    port: 80
+
+  # Only registered endpoints get Apigee policies
+  endpoints:
+    - path: /accounts
+      methods: [GET]
+      policies:
+        - apikey-verify
+        - rate-limit-100
+        - response-cache-60s
+
+    - path: /accounts/{id}
+      methods: [GET]
+      policies:
+        - apikey-verify
+        - rate-limit-100
+
+    # AI chat endpoint — has auth but NO content inspection
+    - path: /ai/chat
+      methods: [POST]
+      policies:
+        - apikey-verify
+        - rate-limit-30
+        - request-size-limit-10kb
+        # NOTE: No prompt injection detection — Apigee validates JSON schema,
+        # not semantic content. A valid JSON body with a prompt injection payload
+        # passes all Apigee checks.
+
+    - path: /admin/ping
+      methods: [GET]
+      policies:
+        - apikey-verify
+        - ip-whitelist
+        - rate-limit-10
+
+    - path: /fx
+      methods: [GET]
+      policies:
+        - rate-limit-500
+        # Open endpoint, no auth required
+
+  # WHAT IS NOT HERE (the demo's point):
+  #
+  # /api/ai/status    — zombie API, never registered, no policies
+  # /api/accounts/{id}/details — added post-launch, forgot to register
+  #
+  # These endpoints are accessible directly via the K8s ingress/LB,
+  # bypassing Apigee entirely. The attacker uses /api/ai/status as
+  # the entry point (Act 5, Step 1).
+  #
+  # Additionally, internal E-W traffic (DemoBank → MCP Financial Data)
+  # never touches Apigee. The gateway only sees N-S traffic.
+
+---
+# Apigee Policies
+
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: apikey-verify
+spec:
+  type: VerifyAPIKey
+  source: request.header.x-api-key
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: rate-limit-100
+spec:
+  type: SpikeArrest
+  rate: 100pm
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: rate-limit-30
+spec:
+  type: SpikeArrest
+  rate: 30pm
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: rate-limit-10
+spec:
+  type: SpikeArrest
+  rate: 10pm
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: rate-limit-500
+spec:
+  type: SpikeArrest
+  rate: 500pm
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: ip-whitelist
+spec:
+  type: AccessControl
+  allow:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+
+---
+apiVersion: apigee.google.com/v1
+kind: Policy
+metadata:
+  name: request-size-limit-10kb
+spec:
+  type: AssignMessage
+  maxPayloadSize: 10240

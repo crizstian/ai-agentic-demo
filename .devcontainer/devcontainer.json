@@ -1,0 +1,52 @@
+{
+  "name": "ai-agentic-demo",
+  "dockerComposeFile": ["docker-compose.devcontainer.yml"],
+  "service": "ai-agentic-demo",
+  "workspaceFolder": "/workspace/ai-agentic-demo",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "golang.go",
+        "redhat.vscode-yaml",
+        "humao.rest-client",
+        "esbenp.prettier-vscode",
+        "ShiftLeft.shiftleft-core",
+        "shd101wyy.markdown-preview-enhanced",
+        "mermaidchart.vscode-mermaid-chart",
+        "bierner.markdown-mermaid",
+        "ms-python.python",
+        "mikestead.dotenv",
+        "harness-inc.harness-vscode"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "shiftleft.analyzeOnSave": true,
+        "shiftleft.enableSecretsScan": true,
+        "shiftleft.enableSastScan": true,
+        "shiftleft.enableScaScan": true,
+        "shiftleft.severityFilter": "high",
+        "shiftleft.languages": ["go", "javascript", "typescript", "python"]
+      }
+    }
+  },
+  "remoteEnv": {
+    "LOG_LEVEL": "${containerEnv:LOG_LEVEL}",
+    "CLAUDE_CODE_USE_VERTEX": "${containerEnv:CLAUDE_CODE_USE_VERTEX}",
+    "ANTHROPIC_VERTEX_PROJECT_ID": "${containerEnv:ANTHROPIC_VERTEX_PROJECT_ID}",
+    "GOOGLE_CLOUD_PROJECT": "${containerEnv:GOOGLE_CLOUD_PROJECT}",
+    "CLOUD_ML_REGION": "${containerEnv:CLOUD_ML_REGION}",
+    "GOOGLE_APPLICATION_CREDENTIALS": "${containerEnv:GOOGLE_APPLICATION_CREDENTIALS}",
+    "GIT_USER_NAME": "${containerEnv:GIT_USER_NAME}",
+    "GIT_USER_EMAIL": "${containerEnv:GIT_USER_EMAIL}",
+    "KUBECONFIG": "${containerEnv:KUBECONFIG}",
+    "NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt",
+    "GOROOT": "/usr/local/go",
+    "GOPATH": "/home/devuser/go",
+    "PATH": "/usr/local/go/bin:/home/devuser/go/bin:${containerEnv:PATH}"
+  },
+  "remoteUser": "devuser",
+  "postCreateCommand": "bash .devcontainer/scripts/devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/scripts/devcontainer/post-start.sh",
+  "postAttachCommand": "code --install-extension .devcontainer/plugins/harness-vscode-0.1.9-beta.2.vsix --force 2>/dev/null || true"
+}

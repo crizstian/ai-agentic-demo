@@ -1,0 +1,16 @@
+infrastructureDefinition:
+  name: latam-nodepool-helm
+  identifier: latam_nodepool_helm
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "NativeHelm infra — GKE se-sandbox, namespace seleccionado en runtime"
+  environmentRef: gke_latam
+  deploymentType: NativeHelm
+  type: KubernetesDirect
+  spec:
+    connectorRef: selatam
+    namespace: <+input>
+    releaseName: release-<+INFRA_KEY_SHORT_ID>
+  allowSimultaneousDeployments: false
+  tags:
+    component: helm

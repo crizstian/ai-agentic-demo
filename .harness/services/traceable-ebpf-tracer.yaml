@@ -1,0 +1,42 @@
+service:
+  name: traceable-ebpf-tracer
+  identifier: traceable_ebpf_tracer
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "Traceable eBPF Tracer — kernel-level traffic capture for N-S and E-W API visibility"
+  serviceDefinition:
+    type: NativeHelm
+    spec:
+      manifests:
+        - manifest:
+            identifier: traceable_ebpf_chart
+            type: HelmChart
+            spec:
+              store:
+                type: Http
+                spec:
+                  connectorRef: traceableai_helm_repo
+              chartName: traceable-ebpf-tracer
+              chartVersion: <+input>
+              helmVersion: V3
+              skipResourceVersioning: false
+      variables:
+        - name: REMOTE_CONFIG_ENDPOINT
+          type: String
+          description: "TPA gRPC endpoint for remote config (service.namespace:port)"
+          value: agent.traceableai:5442
+        - name: CAPTURE_ALL_NAMESPACES
+          type: String
+          description: "Capture traffic from all namespaces (required for cross-namespace E-W)"
+          value: "true"
+        - name: MODE
+          type: String
+          description: "Traffic capture mode — ingress_and_egress for full E-W visibility"
+          value: ingress_and_egress
+        - name: TRACEABLE_ENVIRONMENT
+          type: String
+          description: "Environment name matching TPA config"
+          value: demo
+  tags:
+    app: traceable
+    component: ebpf

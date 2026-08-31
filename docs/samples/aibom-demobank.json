@@ -1,0 +1,317 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:3f8e9a1b-7c42-4d5e-b6a8-1e2f3c4d5e6f",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-08-29T00:00:00Z",
+    "tools": {
+      "components": [
+        {
+          "type": "application",
+          "name": "harness-aibom-scanner",
+          "version": "1.65.0",
+          "publisher": "Harness Inc.",
+          "description": "Harness SCS AIBOM Scanner — discovers AI/ML components, MCP tools, prompt templates, and AI-facing API endpoints in application source code and runtime telemetry."
+        }
+      ]
+    },
+    "component": {
+      "type": "application",
+      "name": "DemoBank",
+      "version": "1.0.0",
+      "description": "AI-powered banking demo application with integrated AI assistant, MCP tool integrations, and financial data services.",
+      "supplier": {
+        "name": "Harness Inc.",
+        "url": [
+          "https://harness.io"
+        ]
+      }
+    },
+    "properties": [
+      {
+        "name": "harness:scs:scan-type",
+        "value": "aibom"
+      },
+      {
+        "name": "harness:scs:scanner-version",
+        "value": "1.65.0"
+      },
+      {
+        "name": "harness:scs:ai-components-detected",
+        "value": "4"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "machine-learning-model",
+      "bom-ref": "ai-assistant-agent",
+      "name": "demobank-ai-assistant",
+      "version": "1.0.0",
+      "description": "AI-powered banking assistant that answers customer financial questions. Uses a system prompt template and external MCP tool for data enrichment. Responds via the /api/ai/chat endpoint.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "a4b8c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4"
+        }
+      ],
+      "properties": [
+        {
+          "name": "ai:type",
+          "value": "agent"
+        },
+        {
+          "name": "ai:framework",
+          "value": "custom-flask"
+        },
+        {
+          "name": "ai:model_reference",
+          "value": "gpt-4-turbo"
+        },
+        {
+          "name": "ai:endpoint",
+          "value": "/api/ai/chat"
+        },
+        {
+          "name": "ai:input_type",
+          "value": "natural-language"
+        },
+        {
+          "name": "ai:output_type",
+          "value": "json"
+        },
+        {
+          "name": "ai:pii_exposure",
+          "value": "true"
+        },
+        {
+          "name": "ai:source_file",
+          "value": "app/routes/ai_assistant.py"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "mcp-financial-data",
+      "name": "mcp-financial-data-tool",
+      "version": "1.0.0",
+      "description": "External MCP tool that provides financial data enrichment for the AI assistant. Called at runtime over HTTP to retrieve customer account information.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6"
+        }
+      ],
+      "properties": [
+        {
+          "name": "ai:type",
+          "value": "mcp-tool"
+        },
+        {
+          "name": "ai:endpoint",
+          "value": "http://mcp-financial-data:5001/mcp/financial-data"
+        },
+        {
+          "name": "ai:traffic_type",
+          "value": "east-west"
+        },
+        {
+          "name": "ai:protocol",
+          "value": "http-json"
+        },
+        {
+          "name": "ai:data_sensitivity",
+          "value": "high"
+        },
+        {
+          "name": "ai:source_file",
+          "value": "app/routes/ai_assistant.py"
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "bom-ref": "system-prompt-template",
+      "name": "demobank-system-prompt",
+      "version": "1.0.0",
+      "description": "System prompt template for the DemoBank AI assistant. Concatenates user input directly into the prompt without sanitisation, making it vulnerable to prompt injection attacks (VULN-008).",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2"
+        }
+      ],
+      "properties": [
+        {
+          "name": "ai:type",
+          "value": "prompt-template"
+        },
+        {
+          "name": "ai:injection_vulnerable",
+          "value": "true"
+        },
+        {
+          "name": "ai:template_content",
+          "value": "You are DemoBank's AI financial assistant. Answer the customer's question using the provided context.\n\nCustomer message: {user_input}"
+        },
+        {
+          "name": "ai:input_sanitisation",
+          "value": "none"
+        },
+        {
+          "name": "ai:source_file",
+          "value": "app/routes/ai_assistant.py"
+        },
+        {
+          "name": "ai:source_line",
+          "value": "64-68"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "ai-status-endpoint",
+      "name": "ai-status-debug-endpoint",
+      "version": "1.0.0",
+      "description": "Unauthenticated debug endpoint that exposes the AI assistant's operational status, configured model name, and registered MCP tool URLs. Accessible at /api/ai/status without authentication.",
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9"
+        }
+      ],
+      "properties": [
+        {
+          "name": "ai:type",
+          "value": "ai-api-endpoint"
+        },
+        {
+          "name": "ai:path",
+          "value": "/api/ai/status"
+        },
+        {
+          "name": "ai:method",
+          "value": "GET"
+        },
+        {
+          "name": "ai:authenticated",
+          "value": "false"
+        },
+        {
+          "name": "ai:exposes_config",
+          "value": "true"
+        },
+        {
+          "name": "ai:source_file",
+          "value": "app/routes/ai_assistant.py"
+        },
+        {
+          "name": "ai:source_line",
+          "value": "90-106"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "ai-assistant-agent",
+      "dependsOn": [
+        "mcp-financial-data",
+        "system-prompt-template"
+      ]
+    },
+    {
+      "ref": "mcp-financial-data",
+      "dependsOn": []
+    },
+    {
+      "ref": "system-prompt-template",
+      "dependsOn": []
+    },
+    {
+      "ref": "ai-status-endpoint",
+      "dependsOn": []
+    }
+  ],
+  "vulnerabilities": [
+    {
+      "id": "VULN-008",
+      "bom-ref": "vuln-prompt-injection",
+      "source": {
+        "name": "OWASP",
+        "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      },
+      "references": [
+        {
+          "id": "OWASP-LLM01",
+          "source": {
+            "name": "OWASP Top 10 for LLM Applications",
+            "url": "https://genai.owasp.org/llmrisk/llm01-prompt-injection/"
+          }
+        }
+      ],
+      "ratings": [
+        {
+          "score": 9.8,
+          "severity": "critical",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "cwes": [
+        77
+      ],
+      "description": "User input is concatenated directly into the system prompt without any sanitisation or input validation. An attacker can craft a message that overrides the system prompt instructions, causing the AI assistant to disclose sensitive data, execute unintended actions, or bypass access controls.",
+      "detail": "In app/routes/ai_assistant.py line 64-68, the variable 'message' from the HTTP request body is concatenated into system_prompt using string concatenation. No prompt boundary enforcement, input filtering, or output validation is applied.",
+      "recommendation": "Implement prompt/data boundary separation using delimiters and role-based message arrays. Apply input sanitisation to strip or escape control sequences. Use output filtering to prevent sensitive data leakage in AI responses.",
+      "affects": [
+        {
+          "ref": "ai-assistant-agent"
+        },
+        {
+          "ref": "system-prompt-template"
+        }
+      ]
+    },
+    {
+      "id": "VULN-009",
+      "bom-ref": "vuln-insecure-output",
+      "source": {
+        "name": "OWASP",
+        "url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      },
+      "references": [
+        {
+          "id": "OWASP-LLM02",
+          "source": {
+            "name": "OWASP Top 10 for LLM Applications",
+            "url": "https://genai.owasp.org/llmrisk/llm02-insecure-output-handling/"
+          }
+        }
+      ],
+      "ratings": [
+        {
+          "score": 8.6,
+          "severity": "high",
+          "method": "CVSSv31",
+          "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+        }
+      ],
+      "cwes": [
+        200
+      ],
+      "description": "The AI assistant response includes raw financial context containing PII (account owner names) and sensitive financial data (account balances, types) without any filtering or redaction. The system prompt used for the request is also returned in the response, leaking internal AI configuration.",
+      "detail": "In app/routes/ai_assistant.py line 77-85, the response JSON includes 'financial_context' (raw database rows with owner names and balances), 'mcp_tool_result' (unfiltered MCP tool output), and 'system_prompt_used' (the full system prompt including injected user input).",
+      "recommendation": "Apply PII redaction to all AI-generated outputs before returning to the client. Remove internal fields (system_prompt_used, raw financial_context) from production responses. Implement output validation against an allow-list of safe response fields.",
+      "affects": [
+        {
+          "ref": "ai-assistant-agent"
+        },
+        {
+          "ref": "mcp-financial-data"
+        }
+      ]
+    }
+  ]
+}

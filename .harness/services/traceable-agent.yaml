@@ -1,0 +1,38 @@
+service:
+  name: traceable-agent
+  identifier: traceable_agent
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "Traceable Platform Agent (TPA) — API discovery, behavioral detection, threat scoring, blocking"
+  serviceDefinition:
+    type: NativeHelm
+    spec:
+      manifests:
+        - manifest:
+            identifier: traceable_agent_chart
+            type: HelmChart
+            spec:
+              store:
+                type: Http
+                spec:
+                  connectorRef: traceableai_helm_repo
+              chartName: traceable-agent
+              chartVersion: <+input>
+              helmVersion: V3
+              skipResourceVersioning: false
+      variables:
+        - name: TRACEABLE_CLUSTER_NAME
+          type: String
+          description: "Cluster name as registered in Traceable platform"
+          value: se-sandbox
+        - name: TRACEABLE_ENVIRONMENT
+          type: String
+          description: "Environment name in Traceable platform"
+          value: demo
+        - name: TRACEABLE_AGENT_TOKEN
+          type: Secret
+          description: "Agent token from app.traceable.ai > Administration > Agent Token"
+          value: <+secrets.getValue("traceable_agent_token")>
+  tags:
+    app: traceable
+    component: tpa

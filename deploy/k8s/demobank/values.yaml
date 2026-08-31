@@ -17,3 +17,8 @@ resources:
     memory: "256Mi"
 
 containerPort: 3000
+
+# Toggle readiness probe bug for Manifest Remediator demo
+# Set to "/healthz" to enable the bug (triggers deploy failure + Manifest Remediator)
+# Set to "/health" for normal operation (default for AI Security demo flow)
+healthCheckPath: "/health"

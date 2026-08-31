@@ -1,0 +1,379 @@
+pipeline:
+  projectIdentifier: CristianRamirez
+  orgIdentifier: sandbox
+  identifier: AI_SDLC_DemoBank
+  name: AI SDLC DemoBank
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: org.Cristian_GH
+        repoName: ai-agentic-demo
+        build: <+input>
+        sparseCheckout: []
+  stages:
+    - stage:
+        name: Build
+        identifier: CI
+        description: "Acts 2-3: PR validation (lint, tests, AI review, security scan) and main branch build (SBOM, Docker push)"
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: true
+            paths: []
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - stepGroup:
+                  name: PR Validation
+                  identifier: PR_Pipeline
+                  when:
+                    stageStatus: Success
+                    condition: <+trigger.event> == "PR"
+                  steps:
+                    - stepGroup:
+                        name: Build Validation
+                        identifier: Build_Validation
+                        steps:
+                          - step:
+                              type: Run
+                              name: Build and Lint
+                              identifier: Build_and_Lint
+                              spec:
+                                shell: Sh
+                                command: |-
+                                  set -eu
+                                  echo "Branch: <+codebase.branch>"
+                                  echo "PR Title: <+trigger.prTitle>"
+                                  pip install --quiet -r requirements.txt
+                                  python -m py_compile app/server.py
+                                  echo "Build validation passed"
+                          - step:
+                              type: Test
+                              name: Test Intelligence
+                              identifier: Test_Intelligence
+                              spec:
+                                shell: Sh
+                                command: |-
+                                  pip install -r requirements-dev.txt
+                                  pytest --junitxml=test-results/junit.xml
+                                reports:
+                                  type: JUnit
+                                  spec:
+                                    paths:
+                                      - test-results/junit.xml
+                                intelligenceMode: true
+                              failureStrategies:
+                                - onFailure:
+                                    errors:
+                                      - AllErrors
+                                    action:
+                                      type: MarkAsSuccess
+                              when:
+                                stageStatus: Success
+                          - step:
+                              type: Agent
+                              name: Change Advisor
+                              identifier: Change_Advisor
+                              spec:
+                                agentName: code_reviewer
+                                agentSettings:
+                                  llmConnector: account.harnessAnthropic
+                                  mcpConnectors:
+                                    - mcp_harness_cristian
+                                    - mcp_github_cristian
+                                  modelName: claude-sonnet-4-6
+                              when:
+                                stageStatus: Success
+                            contextType: Pipeline
+                    - stepGroup:
+                        name: Security Scanning and Remediation
+                        identifier: Security_Scanning
+                        steps:
+                          - parallel:
+                              - step:
+                                  type: Gitleaks
+                                  name: Secrets Detection
+                                  identifier: Secrets_Detection
+                                  spec:
+                                    mode: orchestration
+                                    config: default
+                                    target:
+                                      type: repository
+                                      detection: auto
+                                    advanced:
+                                      log:
+                                        level: info
+                              - step:
+                                  type: HarnessSAST
+                                  name: AI SAST
+                                  identifier: AI_SAST
+                                  spec:
+                                    mode: orchestration
+                                    config: sast
+                                    target:
+                                      type: repository
+                                      detection: auto
+                                    advanced:
+                                      log:
+                                        level: info
+                              - step:
+                                  type: HarnessSAST
+                                  name: Harness SCA
+                                  identifier: Harness_SCA
+                                  spec:
+                                    mode: orchestration
+                                    config: sca
+                                    target:
+                                      type: repository
+                                      detection: auto
+                                    advanced:
+                                      log:
+                                        level: info
+                          - step:
+                              type: Agent
+                              name: Security Remediator
+                              identifier: Security_Remediator
+                              spec:
+                                agentName: security_analyzer
+                                agentSettings:
+                                  llmConnector: account.harnessAnthropic
+                                  mcpConnectors:
+                                    - mcp_harness_cristian
+                                    - mcp_github_cristian
+                                  modelName: claude-sonnet-4-6
+                              when:
+                                stageStatus: Success
+                                condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.AI_SAST.output.outputVariables.HIGH> > 0
+                            contextType: Pipeline
+              - stepGroup:
+                  name: Build and Supply Chain
+                  identifier: Supply_Chain_Governance
+                  steps:
+                    - parallel:
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: Build DemoBank Image
+                            identifier: Build_DemoBank
+                            spec:
+                              connectorRef: DockerCristian
+                              repo: crizstian/harnessbank-demo
+                              tags:
+                                - latest
+                                - <+pipeline.sequenceId>
+                              caching: true
+                              dockerfile: Dockerfile
+                          contextType: Pipeline
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: Build MCP Financial Data
+                            identifier: Build_MCP
+                            spec:
+                              connectorRef: DockerCristian
+                              repo: crizstian/mcp-financial-data
+                              tags:
+                                - latest
+                                - <+pipeline.sequenceId>
+                              caching: true
+                              dockerfile: services/mcp-financial-data/Dockerfile
+                              context: services/mcp-financial-data
+                          contextType: Pipeline
+                    - step:
+                        type: SscaOrchestration
+                        name: SBOM DemoBank
+                        identifier: SBOM_DemoBank
+                        spec:
+                          mode: generation
+                          tool:
+                            type: cdxgen
+                            spec:
+                              format: cyclonedx-json
+                          source:
+                            type: docker
+                            spec:
+                              connector: DockerCristian
+                              image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                          attestation:
+                            type: keyless
+                            spec:
+                              oidcProvider: harness
+                          resources:
+                            limits:
+                              memory: 500Mi
+                              cpu: "0.5"
+                      contextType: Pipeline
+                    - step:
+                        type: SscaOrchestration
+                        name: SBOM MCP Financial Data
+                        identifier: SBOM_MCP
+                        spec:
+                          mode: generation
+                          tool:
+                            type: cdxgen
+                            spec:
+                              format: cyclonedx-json
+                          source:
+                            type: docker
+                            spec:
+                              connector: DockerCristian
+                              image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                          attestation:
+                            type: keyless
+                            spec:
+                              oidcProvider: harness
+                          resources:
+                            limits:
+                              memory: 500Mi
+                              cpu: "0.5"
+                      contextType: Pipeline
+                  when:
+                    stageStatus: Success
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+          buildIntelligence:
+            enabled: false
+        variables:
+          - name: HARNESS_TOKEN
+            type: String
+            description: ""
+            required: false
+            value: <+secrets.getValue("pat")>
+    - stage:
+        name: Deploy DemoBank
+        identifier: Deploy_DemoBank
+        description: "Act 4: Governed canary deployment"
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: demobank
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: demobank_image
+                          type: DockerRegistry
+                          spec:
+                            tag: latest
+          environment:
+            environmentRef: gke_latam
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: latam_nodepool
+          execution:
+            steps:
+              - stepGroup:
+                  name: Canary Deployment
+                  identifier: canaryDeployment
+                  steps:
+                    - step:
+                        type: K8sCanaryDeploy
+                        name: Canary Deployment
+                        identifier: Canary_Deployment
+                        spec:
+                          skipDryRun: false
+                          instanceSelection:
+                            type: Count
+                            spec:
+                              count: 2
+                        timeout: 10m
+                    - step:
+                        name: Canary Delete
+                        identifier: canaryDelete
+                        type: K8sCanaryDelete
+                        timeout: 10m
+                        spec: {}
+                      contextType: Pipeline
+              - stepGroup:
+                  name: Primary Deployment
+                  identifier: primaryDeployment
+                  steps:
+                    - step:
+                        name: Rolling Deployment
+                        identifier: rollingDeployment
+                        type: K8sRollingDeploy
+                        timeout: 10m
+                        spec:
+                          skipDryRun: false
+            rollbackSteps:
+              - step:
+                  name: Canary Delete
+                  identifier: rollbackCanaryDelete
+                  type: K8sCanaryDelete
+                  timeout: 10m
+                  spec: {}
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+    - stage:
+        name: Deploy MCP Financial Data
+        identifier: Deploy_MCP
+        description: Deploy East-West traffic service for Traceable demo
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: mcp_financial_data
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: mcp_financial_data_image
+                          type: DockerRegistry
+                          spec:
+                            tag: latest
+          environment:
+            environmentRef: gke_latam
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: latam_nodepool
+          execution:
+            steps:
+              - step:
+                  name: Rolling Deployment
+                  identifier: rollingDeployment
+                  type: K8sRollingDeploy
+                  timeout: 10m
+                  spec:
+                    skipDryRun: false
+            rollbackSteps:
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")

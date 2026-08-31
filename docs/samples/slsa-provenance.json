@@ -1,0 +1,179 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "gcr.io/harness-demo/demobank",
+      "digest": {
+        "sha256": "a4c7e3f91b2d5068e7ca39f1d84b26e50c3f7a9d1e6b84023cf59a7b3d1e820f"
+      }
+    }
+  ],
+  "predicateType": "https://slsa.dev/provenance/v1",
+  "predicate": {
+    "buildDefinition": {
+      "buildType": "https://harness.io/HarnessBuild/v1",
+      "externalParameters": {
+        "source": {
+          "uri": "git+https://github.com/luisredda/ai-agentic-demo",
+          "digest": {
+            "sha1": "ff8fc1da9e3b7c42d5e0b6a81e2f3c4d5e6f7a8b"
+          },
+          "ref": "refs/heads/feat/ai-assistant"
+        },
+        "builderConfigSource": {
+          "uri": "git+https://github.com/luisredda/ai-agentic-demo",
+          "digest": {
+            "sha1": "ff8fc1da9e3b7c42d5e0b6a81e2f3c4d5e6f7a8b"
+          },
+          "path": ".harness/PR-Validation.yaml",
+          "ref": "refs/heads/feat/ai-assistant"
+        }
+      },
+      "internalParameters": {
+        "pipelineIdentifier": "PR-Validation",
+        "stageIdentifier": "CI-Build",
+        "stepIdentifier": "Build-and-Push",
+        "accountIdentifier": "px7xd_BFRCi-pfWPYXVjvw",
+        "orgIdentifier": "default",
+        "projectIdentifier": "DemoBank",
+        "buildNumber": 47,
+        "triggerType": "PUSH"
+      },
+      "resolvedDependencies": [
+        {
+          "uri": "docker://python",
+          "digest": {
+            "sha256": "b1d7c4e83a5f29064d7e8b3c6a1f5d920e4c7b8a3d6e9f0c2b5a8d1e4f7c0a3b"
+          },
+          "name": "python:3.12-slim",
+          "mediaType": "application/vnd.docker.distribution.manifest.v2+json"
+        },
+        {
+          "uri": "pkg:pypi/flask@3.1.1",
+          "name": "flask",
+          "version": "3.1.1"
+        },
+        {
+          "uri": "pkg:pypi/requests@2.32.3",
+          "name": "requests",
+          "version": "2.32.3"
+        },
+        {
+          "uri": "pkg:pypi/flask-cors@5.0.1",
+          "name": "flask-cors",
+          "version": "5.0.1"
+        },
+        {
+          "uri": "pkg:pypi/gunicorn@23.0.0",
+          "name": "gunicorn",
+          "version": "23.0.0"
+        },
+        {
+          "uri": "pkg:pypi/anthropic@0.49.0",
+          "name": "anthropic",
+          "version": "0.49.0"
+        }
+      ]
+    },
+    "runDetails": {
+      "builder": {
+        "id": "https://harness.io/builders/hosted-ci/v1",
+        "builderDependencies": [
+          {
+            "uri": "docker://plugins/kaniko",
+            "digest": {
+              "sha256": "d3e8a5c1b7f2940e6d1c3a8b5f7e2d0c4a9b6e3f1d8c5a2b7e4f0d3c6a9b2e5"
+            },
+            "name": "kaniko-builder",
+            "version": "1.23.2"
+          }
+        ],
+        "version": {
+          "harness-ci": "1.65.0",
+          "kaniko": "1.23.2"
+        }
+      },
+      "metadata": {
+        "invocationId": "https://app.harness.io/ng/account/px7xd_BFRCi-pfWPYXVjvw/module/ci/orgs/default/projects/DemoBank/pipelines/PR-Validation/executions/8bWn4xR7Qk-dJ5vL2mF9Ag",
+        "startedOn": "2026-08-29T14:23:17.042Z",
+        "finishedOn": "2026-08-29T14:27:43.518Z",
+        "buildDurationMs": 266476,
+        "reproducible": false
+      },
+      "byproducts": [
+        {
+          "name": "SBOM",
+          "mediaType": "application/spdx+json",
+          "uri": "https://app.harness.io/ng/account/px7xd_BFRCi-pfWPYXVjvw/module/ssca/orgs/default/projects/DemoBank/artifacts/gcr.io%2Fharness-demo%2Fdemobank/sbom/a4c7e3f9",
+          "digest": {
+            "sha256": "e7b3c9d1f5a2840e6d3b7c1a9f4e2d8c5b0a6e3f7d1c8a4b9e5f2c0d6a3b7e1"
+          }
+        },
+        {
+          "name": "SecurityScanResults",
+          "mediaType": "application/sarif+json",
+          "uri": "https://app.harness.io/ng/account/px7xd_BFRCi-pfWPYXVjvw/module/sto/orgs/default/projects/DemoBank/scans/8bWn4xR7Qk/results",
+          "content": {
+            "summary": {
+              "critical": 0,
+              "high": 0,
+              "medium": 2,
+              "low": 4,
+              "info": 1
+            },
+            "scanner": "aqua-trivy",
+            "scannerVersion": "0.56.2"
+          }
+        },
+        {
+          "name": "CosignSignature",
+          "mediaType": "application/vnd.dev.cosign.simplesigning.v1+json",
+          "uri": "gcr.io/harness-demo/demobank:sha256-a4c7e3f91b2d5068e7ca39f1d84b26e50c3f7a9d1e6b84023cf59a7b3d1e820f.sig",
+          "digest": {
+            "sha256": "c2f8d4a6e1b3970d5c8a2e6f9b4d1c7a3e0f5b8d2c6a9e3f7b1d4c8a5e2f0d3"
+          }
+        },
+        {
+          "name": "TestResults",
+          "mediaType": "application/xml",
+          "uri": "https://app.harness.io/ng/account/px7xd_BFRCi-pfWPYXVjvw/module/ci/orgs/default/projects/DemoBank/pipelines/PR-Validation/executions/8bWn4xR7Qk/tests",
+          "content": {
+            "testsRun": 12,
+            "testsPassed": 12,
+            "testsFailed": 0,
+            "testsSkipped": 0,
+            "coveragePercent": 78.4
+          }
+        }
+      ]
+    }
+  },
+  "cosign_verification": {
+    "verified": true,
+    "signatureAlgorithm": "ECDSA_P256",
+    "certificate": {
+      "issuer": "CN=Harness CI Signing, O=Harness Inc, L=San Francisco, ST=California, C=US",
+      "subject": "https://harness.io/builders/hosted-ci/v1",
+      "notBefore": "2026-08-29T14:27:40Z",
+      "notAfter": "2026-08-29T15:27:40Z",
+      "serialNumber": "7a3e9c1d5f2b8406"
+    },
+    "transparencyLog": {
+      "provider": "Rekor",
+      "logIndex": 134829517,
+      "integratedTime": "2026-08-29T14:27:44Z",
+      "logId": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+      "entryUUID": "24296fb24b8ad77a8b3e0c5d7f1a9246e38d5c7b0a2e4f6d8c1b3a5e7f9d0c2b"
+    },
+    "slsaLevel": "SLSA_BUILD_LEVEL_2",
+    "slsaRequirementsMet": {
+      "buildAsCode": true,
+      "hostedBuildPlatform": true,
+      "authenticatedProvenance": true,
+      "serviceGeneratedProvenance": true,
+      "isolatedBuild": true
+    },
+    "verificationTimestamp": "2026-08-29T14:27:51.203Z",
+    "verificationCommand": "cosign verify-attestation --type slsaprovenance --certificate-identity https://harness.io/builders/hosted-ci/v1 --certificate-oidc-issuer https://app.harness.io gcr.io/harness-demo/demobank@sha256:a4c7e3f91b2d5068e7ca39f1d84b26e50c3f7a9d1e6b84023cf59a7b3d1e820f"
+  }
+}

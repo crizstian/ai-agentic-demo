@@ -1,0 +1,13 @@
+{
+  "grafana": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@grafana/mcp-grafana"
+    ],
+    "env": {
+      "GRAFANA_URL": "${containerEnv:GRAFANA_URL}",
+      "GRAFANA_API_KEY": "${containerEnv:GRAFANA_API_KEY}"
+    }
+  }
+}

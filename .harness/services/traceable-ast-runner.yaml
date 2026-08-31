@@ -1,0 +1,42 @@
+service:
+  name: traceable-ast-runner
+  identifier: traceable_ast_runner
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "Traceable AST Runner — Active Security Testing runner for API DAST scans"
+  serviceDefinition:
+    type: NativeHelm
+    spec:
+      manifests:
+        - manifest:
+            identifier: traceable_ast_runner_chart
+            type: HelmChart
+            spec:
+              store:
+                type: Http
+                spec:
+                  connectorRef: traceableai_helm_repo
+              chartName: traceable-ast-runner
+              chartVersion: <+input>
+              helmVersion: V3
+              skipResourceVersioning: false
+      variables:
+        - name: RUNNER_NAME
+          type: String
+          description: "Runner name as registered in Traceable platform"
+          value: demo-runner
+        - name: TRACEABLE_PLATFORM_URL
+          type: String
+          description: "Traceable platform API URL"
+          value: https://api.traceable.ai
+        - name: TRACEABLE_ENVIRONMENT
+          type: String
+          description: "Environment name matching TPA config"
+          value: demo
+        - name: TRACEABLE_PLATFORM_TOKEN
+          type: Secret
+          description: "Platform token from app.traceable.ai (NOT the agent token)"
+          value: <+secrets.getValue("traceable_platform_token")>
+  tags:
+    app: traceable
+    component: ast-runner

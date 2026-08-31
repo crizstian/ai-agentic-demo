@@ -1,0 +1,16 @@
+infrastructureDefinition:
+  name: latam-nodepool
+  identifier: latam_nodepool
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "Kubernetes Direct infra — namespace harnessbank-demo on GKE se-sandbox"
+  environmentRef: gke_latam
+  deploymentType: Kubernetes
+  type: KubernetesDirect
+  spec:
+    connectorRef: selatam
+    namespace: harnessbank-demo
+    releaseName: release-<+INFRA_KEY_SHORT_ID>
+  allowSimultaneousDeployments: false
+  tags:
+    component: demobank

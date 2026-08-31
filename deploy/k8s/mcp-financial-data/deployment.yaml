@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-financial-data
+  namespace: harnessbank-demo
+  labels:
+    app: mcp-financial-data
+    tier: internal
+    component: mcp-tool
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-financial-data
+  template:
+    metadata:
+      labels:
+        app: mcp-financial-data
+        tier: internal
+        component: mcp-tool
+    spec:
+      nodeSelector:
+        scope: ai-agentic-demo
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: ai_agentic_demo_space
+          effect: NoSchedule
+      containers:
+        - name: mcp-financial-data
+          image: <+artifact.image>
+          ports:
+            - containerPort: 5001
+          env:
+            - name: MCP_PORT
+              value: "5001"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 3
+            periodSeconds: 5

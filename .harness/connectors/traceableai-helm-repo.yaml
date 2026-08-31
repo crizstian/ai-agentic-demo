@@ -1,0 +1,11 @@
+connector:
+  name: Traceable Helm Repo
+  identifier: traceableai_helm_repo
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "Traceable AI Helm chart repository — TPA, eBPF tracer, AST Runner"
+  type: HttpHelmRepo
+  spec:
+    helmRepoUrl: https://helm.traceable.ai
+    auth:
+      type: Anonymous

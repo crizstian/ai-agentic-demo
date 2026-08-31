@@ -25,6 +25,13 @@ spec:
         harness.io/rollout-id: "{{ .Values.rolloutId }}"
 
     spec:
+      nodeSelector:
+        scope: ai-agentic-demo
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: ai_agentic_demo_space
+          effect: NoSchedule
       containers:
         - name: {{ .Values.name }}
           image: {{ .Values.image }}
@@ -50,14 +57,11 @@ spec:
             timeoutSeconds: 1
             failureThreshold: 3
 
-          # DEMO INTENTIONAL BUG:
-          # readinessProbe points to /healthz, which does not exist.
-          # Correct path should be /health.
-          # This will make the Pod stay NotReady and the Deployment fail fast
-          # because of progressDeadlineSeconds.
+          # Health check path is configurable via values.yaml
+          # Set healthCheckPath to "/healthz" to trigger Manifest Remediator demo
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: {{ .Values.healthCheckPath }}
               port: {{ .Values.containerPort }}
             initialDelaySeconds: 5
             periodSeconds: 3

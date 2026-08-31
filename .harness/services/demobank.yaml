@@ -1,0 +1,41 @@
+service:
+  name: demobank
+  identifier: demobank
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "HarnessBank Demo — Flask app with 10 intentional vulnerabilities for SecOps demo"
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: demobank_manifests
+            type: K8sManifest
+            spec:
+              store:
+                type: Github
+                spec:
+                  connectorRef: org.Cristian_GH
+                  repoName: ai-agentic-demo
+                  gitFetchType: Branch
+                  branch: secops/ai-agentic-demo
+                  paths:
+                    - deploy/k8s/demobank/deployment.yaml
+                    - deploy/k8s/demobank/service.yaml
+                    - deploy/k8s/ingress/ingress.yaml
+              valuesPaths:
+                - deploy/k8s/demobank/values.yaml
+              skipResourceVersioning: false
+      artifacts:
+        primary:
+          primaryArtifactRef: demobank_image
+          sources:
+            - identifier: demobank_image
+              type: DockerRegistry
+              spec:
+                connectorRef: DockerCristian
+                imagePath: crizstian/harnessbank-demo
+                tag: <+input>
+  tags:
+    app: demobank
+    tier: frontend

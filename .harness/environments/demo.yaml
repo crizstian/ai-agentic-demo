@@ -1,0 +1,10 @@
+environment:
+  name: gke-latam
+  identifier: gke_latam
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: "SecOps AI Agentic Demo — PreProduction environment for DemoBank workloads on GKE se-sandbox"
+  type: PreProduction
+  tags:
+    demo: secops-ai-agentic
+    owner: cristian-ramirez

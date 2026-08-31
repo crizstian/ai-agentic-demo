@@ -8,3 +8,10 @@ test-results/
 .env
 coverage/
 .DS_Store
+workshop_pipelines/
+.harness-docs/
+.mcp.json
+.claude/settings.local.json
+.claude/memory/
+
+workshop_pipelines/

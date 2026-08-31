@@ -1,0 +1,63 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/audit-mcp.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /workspace/.claude/hooks/validate-push.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "TodoWrite",
+      "WebSearch",
+      "WebFetch",
+      "mcp__perplexity__*",
+      "mcp__github__*",
+      "mcp__harness__*",
+      "mcp__kubernetes__kubectl_get",
+      "mcp__kubernetes__kubectl_describe",
+      "mcp__kubernetes__kubectl_logs",
+      "mcp__kubernetes__kubectl_apply",
+      "mcp__kubernetes__kubectl_create",
+      "mcp__kubernetes__kubectl_delete",
+      "mcp__kubernetes__kubectl_patch",
+      "mcp__kubernetes__kubectl_scale",
+      "mcp__kubernetes__kubectl_rollout",
+      "mcp__chrome__*",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git push*)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(wc *)",
+      "Bash(tree *)",
+      "Bash(cat *)",
+      "Bash(task *)"
+    ]
+  }
+}

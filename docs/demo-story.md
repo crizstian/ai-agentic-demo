@@ -1,6 +1,36 @@
-# DemoBank AI SDLC — Demo Story
+# DemoBank — Demo Story
 
-## Harness Demo Flow
+> For the complete AI-first end-to-end demo script, see [ai-demo-script.md](ai-demo-script.md).
+
+## Demo Modes
+
+This repository supports two demo flows:
+
+### 1. AI-First End-to-End (Recommended)
+The primary demo flow showcasing the Autonomous SDLC with all Harness Agents.
+
+```
+AI Coding Agent (Cursor/Claude Code)
+  ↓
+Software Delivery Agent: PR Validation + Change Advisor
+  ↓
+Security Testing Agent: AI SAST + SCA + SCS + Triage + Remediation
+  ↓
+Software Delivery Agent: Canary Deploy + Continuous Verification
+  ↓
+💥 Attack Chain: Prompt Injection → BOLA/IDOR → PII Exfiltration
+  ↓
+Runtime Protection Agent: Behavioral Detection + Virtual Patch
+  ↓
+Security Testing Agent: Shift Left response (SBOM + Remediation Agent)
+  ↓
+Runtime Protection Agent: AI Security (3-Layer Model)
+```
+
+See [ai-demo-script.md](ai-demo-script.md) for the full script with talking points.
+
+### 2. SDLC Pipeline (Legacy)
+The original pipeline-focused demo. Use when the audience cares more about CI/CD mechanics than AI transformation.
 
 ```
 PR Created
@@ -17,7 +47,7 @@ Docker Build + Push
   ↓
 Kubernetes Preview Deploy
   ↓
-Rollout fails because readinessProbe points to /healthz
+Rollout fails (set healthCheckPath to "/healthz" in deploy/k8s/demobank/values.yaml)
   ↓
 Worker Agent: Manifest Remediator
   ↓
@@ -28,7 +58,11 @@ Retry deployment succeeds
 
 ## Slack Demo Prompts
 
-Copy these into the Slack thread to simulate user feedback:
+Copy these into a Slack thread to simulate user feedback:
+
+```
+The AI assistant gave me someone else's account balance when I asked about my own.
+```
 
 ```
 The transfer button is broken on mobile. I can barely click it.
@@ -38,75 +72,18 @@ The transfer button is broken on mobile. I can barely click it.
 The dashboard cards look misaligned on my screen.
 ```
 
-```
-The transfer form accepted an invalid amount and still showed a success message.
-```
-
-## Cursor Slack Prompt
+## Claude Code / AI Coding Agent Prompt
 
 ```
-@Cursor please analyze this thread, inspect the HarnessBank demo repository, identify the user-facing issues being reported, propose the smallest safe fix, update tests and changelog if appropriate, and open a pull request.
+Use the Harness MCP tools to get context on the latest pipeline execution
+and security findings for DemoBank. Then analyze this Slack thread and the
+repository. Identify the user-facing issues, propose the smallest safe fix,
+update tests if needed, and open a pull request.
 
-Please include in the PR description:
+Include in the PR description:
 - Slack feedback summary
 - What changed
 - Files modified
 - Risk level
-- How to validate manually
-- Any security-related concerns found during code review
-```
-
-## Change Advisor Expected PR Comment
-
-```markdown
-# Harness AI Change Advisor
-
-## User feedback addressed
-This PR appears to address the reported mobile layout issue and transfer form validation behavior.
-
-## What changed
-- Updated responsive CSS for dashboard and transfer form.
-- Improved validation for transfer amount.
-- Added or updated tests for valid transfer behavior.
-- Updated changelog.
-
-## Change classification
-- Type: UI fix + validation fix
-- Risk level: Medium
-- Reviewer focus: mobile behavior, validation correctness, regression risk
-
-## Tests
-Unit tests were available in the current context. Verify the Harness execution for final status.
-
-## Documentation and changelog
-Changelog update should be present if user-facing behavior changed.
-
-## Recommendation
-⚠️ Review with attention
-```
-
-## Security Remediation Advisor Expected Findings
-
-After Semgrep scan, the Security Remediation Advisor should surface:
-
-- SQL query uses string concatenation (`app/routes/accounts.py`)
-- Diagnostic command uses dynamic execution (`app/routes/admin.py`)
-- HTML response reflects query data (`app/app.py`)
-- CORS allows all origins (`app/app.py`)
-
-## Manifest Remediator Expected Behavior
-
-When Kubernetes rollout fails, the Manifest Remediator should identify:
-
-```
-Readiness probe is calling /healthz, but the application exposes /health.
-```
-
-Expected fix in `k8s/deployment.yaml`:
-
-```yaml
-readinessProbe:
-  httpGet:
-    path: /health
-    port: 3000
+- Security-related concerns found during code review
 ```

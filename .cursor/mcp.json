@@ -1,0 +1,64 @@
+{
+  "mcpServers": {
+    "harness": {
+      "type": "http",
+      "url": "http://mcp-harness:8000/mcp"
+    },
+    "atlassian": {
+      "type": "http",
+      "url": "http://mcp-atlassian:8000/mcp"
+    },
+    "github": {
+      "type": "http",
+      "url": "http://mcp-github:8000/mcp"
+    },
+    "perplexity": {
+      "type": "http",
+      "url": "http://mcp-perplexity:8000/mcp"
+    },
+    "obsidian": {
+      "type": "http",
+      "url": "http://mcp-obsidian:8000/mcp"
+    },
+    "kubernetes": {
+      "type": "http",
+      "url": "http://mcp-kubernetes:8000/mcp"
+    },
+    "chrome": {
+      "type": "http",
+      "url": "http://mcp-chrome:8000/mcp"
+    },
+    "docker": {
+      "type": "http",
+      "url": "http://mcp-docker:8000/mcp"
+    },
+    "terraform": {
+      "type": "http",
+      "url": "http://mcp-terraform:8000/mcp"
+    },
+    "grafana": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@grafana/mcp-grafana"
+      ],
+      "env": {
+        "GRAFANA_URL": "${env:GRAFANA_URL}",
+        "GRAFANA_API_KEY": "${env:GRAFANA_API_KEY}"
+      }
+    },
+    "coworker": {
+      "type": "http",
+      "url": "https://odin.coworker.ai/mcp"
+    },
+    "harness-docs": {
+      "type": "http",
+      "url": "https://hdh.mcp.kapa.ai"
+    },
+    "gitlab": {
+      "type": "http",
+      "url": "${GITLAB_MCP_URL:-https://gitlab.example.com/-/mcp}"
+    }
+  }
+}

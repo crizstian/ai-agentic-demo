@@ -39,3 +39,41 @@ rules:
     pattern-either:
       - pattern: CORS($APP, origins="*")
       - pattern: CORS($APP, origins=["*"])
+
+  - id: demo-bank-prompt-injection
+    message: "Demo finding: user input is concatenated directly into an AI system prompt without sanitization, enabling prompt injection attacks."
+    languages: [python]
+    severity: ERROR
+    patterns:
+      - pattern-regex: '"\s*\+\s*message'
+      - pattern-inside: |
+          def $F(...):
+            ...
+
+  - id: demo-bank-pii-leak-ai-response
+    message: "Demo finding: AI assistant response includes raw financial data (owner names, balances) without PII filtering."
+    languages: [python]
+    severity: WARNING
+    patterns:
+      - pattern: |
+          $RESP = {..., "financial_context": $CONTEXT, ...}
+          ...
+          return jsonify($RESP)
+      - pattern-inside: |
+          def $F(...):
+            ...
+
+  - id: demo-bank-bola-idor
+    message: "Demo finding: endpoint exposes sensitive account details without authorization check. Any user can access any account by ID (BOLA/IDOR)."
+    languages: [python]
+    severity: ERROR
+    patterns:
+      - pattern: |
+          @$BP.route("/<id>/details", ...)
+          def $FUNC(id):
+            ...
+      - pattern-not-inside: |
+          def $FUNC(id):
+            ...
+            if not $AUTH(...):
+              ...

@@ -1,0 +1,73 @@
+# Traceable Platform Agent (TPA) — Runtime Protection Agent
+# Provides: API Discovery, Behavioral Detection, Session Stitching,
+#           Threat Scoring, Blocking, Virtual Patching, AI Security
+#
+# This agent monitors ALL traffic — N-S (ingress) AND E-W (service-to-service)
+# Acts 5, 6, 7 depend on this agent being deployed
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: traceable-agent
+  namespace: harnessbank-demo
+  labels:
+    app: traceable-agent
+    component: runtime-protection
+spec:
+  selector:
+    matchLabels:
+      app: traceable-agent
+  template:
+    metadata:
+      labels:
+        app: traceable-agent
+        component: runtime-protection
+    spec:
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: ai_agentic_demo_space
+          effect: NoSchedule
+      containers:
+        - name: traceable-agent
+          image: traceable/tpa:latest
+          env:
+            - name: TA_ENVIRONMENT
+              value: "demo"
+            - name: TA_SERVICE_NAME
+              value: "demobank"
+            - name: TA_REPORTING_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: traceable-config
+                  key: reporting-endpoint
+            - name: TA_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: traceable-config
+                  key: api-token
+            - name: TA_CAPTURE_EAST_WEST
+              value: "true"
+            - name: TA_AI_SECURITY_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            capabilities:
+              add: ["NET_RAW", "NET_ADMIN"]
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: traceable-config
+  namespace: harnessbank-demo
+type: Opaque
+stringData:
+  reporting-endpoint: "https://app.traceable.ai"
+  api-token: "<REPLACE_WITH_TRACEABLE_TOKEN>"

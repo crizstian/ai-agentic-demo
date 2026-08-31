@@ -57,10 +57,10 @@ docker run -p 3000:3000 harnessbank-demo:latest
 ## Deploying to Kubernetes
 
 ```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl apply -f k8s/service.yaml
+kubectl apply -f deploy/k8s/base/namespace.yaml
+kubectl apply -f deploy/k8s/base/configmap.yaml
+kubectl apply -f deploy/k8s/demobank/deployment.yaml
+kubectl apply -f deploy/k8s/demobank/service.yaml
 ```
 
 Note: The initial deployment will fail because the readiness probe points to `/healthz` instead of `/health`. This is intentional — the Manifest Remediator Agent demonstrates the fix.
@@ -79,7 +79,7 @@ Note: The initial deployment will fail because the readiness probe points to `/h
 │   └── static/           # CSS and client JS
 ├── tests/                # pytest + Flask test client
 ├── scripts/              # seed.py, smoke-test.sh
-├── k8s/                  # Kubernetes manifests
+├── deploy/              # Deployment configs (k8s, apigee)
 ├── docs/                 # Demo story, security notes, remediation guidance
 ├── requirements.txt      # Runtime dependencies
 ├── requirements-dev.txt  # Dev/test dependencies
