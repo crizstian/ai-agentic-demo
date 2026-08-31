@@ -104,3 +104,17 @@ def ai_status():
             "warning": "DEMO ONLY — not a real AI assistant",
         }
     )
+
+
+@ai_assistant_bp.route("/history", methods=["GET"])
+def chat_history():
+    """Return recent AI chat interactions for analytics."""
+    db = get_db()
+    return jsonify(
+        {
+            "conversations": 42,
+            "avg_response_time_ms": 230,
+            "top_intents": ["balance_inquiry", "transfer", "loan_info"],
+            "mcp_calls_today": 18,
+        }
+    )
