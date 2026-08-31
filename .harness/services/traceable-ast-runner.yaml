@@ -16,15 +16,47 @@ service:
                 type: Http
                 spec:
                   connectorRef: traceableai_helm_repo
-              chartName: traceable-ast-runner
+              chartName: traceable-runner
               chartVersion: <+input>
               helmVersion: V3
               skipResourceVersioning: false
+        - manifest:
+            identifier: ast_runner_values_override
+            type: Values
+            spec:
+              store:
+                type: Inline
+                spec:
+                  content: |
+                    astRunnerArgs:
+                      name: <+serviceVariables.RUNNER_NAME>
+                      traceableServer: api.us9.traceable.ai
+                      traceableToken: <+serviceVariables.TRACEABLE_PLATFORM_TOKEN>
+                      threads: 20
+                      maxRetries: 3
+                      idleTimeout: 10
+                      logfile: stdout
+                      loglevel: INFO
+                      shouldUploadLogs: true
+                    resources:
+                      limits:
+                        cpu: 2
+                        memory: 4096Mi
+                      requests:
+                        cpu: 1
+                        memory: 2048Mi
+                    tolerations:
+                      - key: dedicated
+                        operator: Equal
+                        value: ai_agentic_demo_space
+                        effect: NoSchedule
+                    nodeSelector:
+                      scope: ai-agentic-demo
       variables:
         - name: RUNNER_NAME
           type: String
           description: "Runner name as registered in Traceable platform"
-          value: demo-runner
+          value: harnessbank-demo-end2end-runner
         - name: TRACEABLE_PLATFORM_URL
           type: String
           description: "Traceable platform API URL"
@@ -32,9 +64,9 @@ service:
         - name: TRACEABLE_ENVIRONMENT
           type: String
           description: "Environment name matching TPA config"
-          value: demo
+          value: harnessbank-demo-end2end
         - name: TRACEABLE_PLATFORM_TOKEN
-          type: Secret
+          type: String
           description: "Platform token from app.traceable.ai (NOT the agent token)"
           value: <+secrets.getValue("traceable_platform_token")>
   tags:

@@ -20,23 +20,54 @@ service:
               chartVersion: <+input>
               helmVersion: V3
               skipResourceVersioning: false
+        - manifest:
+            identifier: ebpf_values_override
+            type: Values
+            spec:
+              store:
+                type: Inline
+                spec:
+                  content: |
+                    remoteConfig:
+                      endpoint: "agent:5442"
+                      secure: false
+                    deploymentStrategy:
+                      tolerations:
+                        - key: dedicated
+                          operator: Equal
+                          value: ai_agentic_demo_space
+                          effect: NoSchedule
+                      deployOnMaster: true
+                      nodeSelectors:
+                        scope: ai-agentic-demo
+                    environmentVariables:
+                      - name: EBPF_OVERRIDE_CONFIG__CAPTURE_ALL_NAMESPACES
+                        value: "true"
+                      - name: EBPF_OVERRIDE_CONFIG__MODE
+                        value: "ingress_and_egress"
+                      - name: EBPF_OVERRIDE_CONFIG__ENABLE_JAVA_TLS_CAPTURE
+                        value: "true"
+                      - name: EBPF_OVERRIDE_CONFIG__HTTP2_DATA_CAPTURE_ENABLED
+                        value: "true"
+                      - name: EBPF_OVERRIDE_CONFIG__ENVIRONMENT
+                        value: harnessbank-demo-end2end
       variables:
         - name: REMOTE_CONFIG_ENDPOINT
           type: String
-          description: "TPA gRPC endpoint for remote config (service.namespace:port)"
-          value: agent.traceableai:5442
+          description: "TPA gRPC endpoint for remote config"
+          value: agent:5442
         - name: CAPTURE_ALL_NAMESPACES
           type: String
-          description: "Capture traffic from all namespaces (required for cross-namespace E-W)"
+          description: "Capture traffic from all namespaces"
           value: "true"
         - name: MODE
           type: String
-          description: "Traffic capture mode — ingress_and_egress for full E-W visibility"
+          description: "Traffic capture mode"
           value: ingress_and_egress
         - name: TRACEABLE_ENVIRONMENT
           type: String
           description: "Environment name matching TPA config"
-          value: demo
+          value: harnessbank-demo-end2end
   tags:
     app: traceable
     component: ebpf

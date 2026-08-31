@@ -20,6 +20,18 @@ service:
               chartVersion: <+input>
               helmVersion: V3
               skipResourceVersioning: false
+        - manifest:
+            identifier: traceable_values_override
+            type: Values
+            spec:
+              store:
+                type: Inline
+                spec:
+                  content: |
+                    token: <+serviceVariables.TRACEABLE_AGENT_TOKEN>
+                    endpoint: api.us9.traceable.ai
+                    environment: <+serviceVariables.TRACEABLE_ENVIRONMENT>
+                    clusterName: <+serviceVariables.TRACEABLE_CLUSTER_NAME>
       variables:
         - name: TRACEABLE_CLUSTER_NAME
           type: String
@@ -28,10 +40,10 @@ service:
         - name: TRACEABLE_ENVIRONMENT
           type: String
           description: "Environment name in Traceable platform"
-          value: demo
+          value: harnessbank-demo-end2end
         - name: TRACEABLE_AGENT_TOKEN
-          type: Secret
-          description: "Agent token from app.traceable.ai > Administration > Agent Token"
+          type: String
+          description: "Agent token from app.traceable.ai"
           value: <+secrets.getValue("traceable_agent_token")>
   tags:
     app: traceable

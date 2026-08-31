@@ -262,7 +262,7 @@ pipeline:
                         - identifier: demobank_image
                           type: DockerRegistry
                           spec:
-                            tag: latest
+                            tag: <+pipeline.sequenceId>
           environment:
             environmentRef: gke_latam
             deployToAll: false
@@ -345,7 +345,7 @@ pipeline:
                         - identifier: mcp_financial_data_image
                           type: DockerRegistry
                           spec:
-                            tag: latest
+                            tag: <+pipeline.sequenceId>
           environment:
             environmentRef: gke_latam
             deployToAll: false

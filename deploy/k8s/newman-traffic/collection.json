@@ -1,0 +1,278 @@
+{
+  "info": {
+    "name": "DemoBank API Traffic Generator",
+    "description": "Generates realistic traffic across all DemoBank endpoints for Traceable API discovery and monitoring",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://harnessbank-demo-end2end:80"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health & Home",
+      "item": [
+        {
+          "name": "Home Page",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/"
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounts API",
+      "item": [
+        {
+          "name": "List All Accounts",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/"
+          }
+        },
+        {
+          "name": "Get Account 1 (Alice)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/1"
+          }
+        },
+        {
+          "name": "Get Account 2 (Bob)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/2"
+          }
+        },
+        {
+          "name": "Get Account 3 (Charlie)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/3"
+          }
+        },
+        {
+          "name": "Get Account 4 (Diana)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/4"
+          }
+        },
+        {
+          "name": "Get Account 5 (Edward)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/5"
+          }
+        },
+        {
+          "name": "Account Details 1 (BOLA)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/1/details"
+          }
+        },
+        {
+          "name": "Account Details 2 (BOLA)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/2/details"
+          }
+        },
+        {
+          "name": "Account Details 3 (BOLA)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/accounts/3/details"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers API",
+      "item": [
+        {
+          "name": "List Transfers",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/transfers/"
+          }
+        },
+        {
+          "name": "Create Transfer (Alice to Bob)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/transfers/",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"fromAccount\": \"1\", \"toAccount\": \"2\", \"amount\": 25.50, \"memo\": \"Coffee reimbursement\"}"
+            }
+          }
+        },
+        {
+          "name": "Create Transfer (Charlie to Diana)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/transfers/",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"fromAccount\": \"3\", \"toAccount\": \"4\", \"amount\": 150.00, \"memo\": \"Project payment\"}"
+            }
+          }
+        },
+        {
+          "name": "Create Transfer (Edward to Alice)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/transfers/",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"fromAccount\": \"5\", \"toAccount\": \"1\", \"amount\": 500.00, \"memo\": \"Quarterly dividend\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Statements API",
+      "item": [
+        {
+          "name": "List Statements",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/statements/"
+          }
+        },
+        {
+          "name": "Download Statement (Jan)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/statements/?file=statement-jan-2024.pdf"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin API",
+      "item": [
+        {
+          "name": "Admin Status",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/status"
+          }
+        },
+        {
+          "name": "Admin Ping",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/ping?host=localhost"
+          }
+        }
+      ]
+    },
+    {
+      "name": "FX Rates API",
+      "item": [
+        {
+          "name": "Get Exchange Rates",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/fx/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Assistant API",
+      "item": [
+        {
+          "name": "AI Status (Zombie API)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/ai/status"
+          }
+        },
+        {
+          "name": "AI Chat - Balance Inquiry",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/ai/chat",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"What is my account balance?\", \"session_id\": \"newman-traffic-001\"}"
+            }
+          }
+        },
+        {
+          "name": "AI Chat - Transaction History",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/ai/chat",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"Show me my recent transactions\", \"session_id\": \"newman-traffic-002\"}"
+            }
+          }
+        },
+        {
+          "name": "AI Chat - FX Question",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/ai/chat",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\": \"What are today's exchange rates for EUR?\", \"session_id\": \"newman-traffic-003\"}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

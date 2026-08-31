@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: newman-traffic
+  namespace: harnessbank-demo-end2end
+  labels:
+    app: newman-traffic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: newman-traffic
+  template:
+    metadata:
+      labels:
+        app: newman-traffic
+    spec:
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: ai_agentic_demo_space
+          effect: NoSchedule
+      nodeSelector:
+        scope: ai-agentic-demo
+      containers:
+        - name: newman
+          image: postman/newman:alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CYCLE=0
+              while true; do
+                CYCLE=$((CYCLE + 1))
+                echo "=== Cycle $CYCLE (E-W internal) at $(date -u) ==="
+                newman run /etc/newman/collection.json \
+                  --env-var "baseUrl=http://harnessbank-demo-end2end:80" \
+                  --timeout-request 10000 \
+                  --suppress-exit-code 2>&1 || true
+                echo "=== Cycle $CYCLE (N-S ingress) at $(date -u) ==="
+                newman run /etc/newman/collection.json \
+                  --env-var "baseUrl=http://demobank-e2e.selatam.harness-demo.site" \
+                  --timeout-request 10000 \
+                  --suppress-exit-code 2>&1 || true
+                sleep 30
+              done
+          volumeMounts:
+            - name: collection
+              mountPath: /etc/newman
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: collection
+          configMap:
+            name: newman-collection
+      restartPolicy: Always
