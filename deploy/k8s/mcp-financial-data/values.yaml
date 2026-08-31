@@ -1,0 +1,14 @@
+name: mcp-financial-data
+namespace: harnessbank-demo-end2end
+image: <+artifact.image>
+replicas: 1
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+
+containerPort: 5001

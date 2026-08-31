@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: harnessbank-demo-config
-  namespace: harnessbank-demo
+  name: harnessbank-demo-end2end-config
+  namespace: harnessbank-demo-end2end
   labels:
-    app: harnessbank-demo
+    app: harnessbank-demo-end2end
 data:
   PORT: "3000"
   NODE_ENV: "demo"

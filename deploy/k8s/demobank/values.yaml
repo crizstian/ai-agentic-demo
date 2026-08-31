@@ -2,8 +2,8 @@
 # <+artifact.image> resolves to the full image:tag from the pipeline artifact source
 # <+pipeline.executionId> changes on every run so Kubernetes rolls the pod
 
-name: harnessbank-demo
-namespace: harnessbank-demo
+name: harnessbank-demo-end2end
+namespace: harnessbank-demo-end2end
 image: <+artifact.image>
 rolloutId: <+pipeline.executionId>
 replicas: 1

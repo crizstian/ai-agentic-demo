@@ -22,6 +22,8 @@ service:
                   paths:
                     - deploy/k8s/mcp-financial-data/deployment.yaml
                     - deploy/k8s/mcp-financial-data/service.yaml
+              valuesPaths:
+                - deploy/k8s/mcp-financial-data/values.yaml
               skipResourceVersioning: false
       artifacts:
         primary:

@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mcp-financial-data
-  namespace: harnessbank-demo
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
   labels:
-    app: mcp-financial-data
+    app: {{ .Values.name }}
     tier: internal
     component: mcp-tool
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: mcp-financial-data
+      app: {{ .Values.name }}
   template:
     metadata:
       labels:
-        app: mcp-financial-data
+        app: {{ .Values.name }}
         tier: internal
         component: mcp-tool
     spec:
@@ -27,29 +27,29 @@ spec:
           value: ai_agentic_demo_space
           effect: NoSchedule
       containers:
-        - name: mcp-financial-data
-          image: <+artifact.image>
+        - name: {{ .Values.name }}
+          image: {{ .Values.image }}
           ports:
-            - containerPort: 5001
+            - containerPort: {{ .Values.containerPort }}
           env:
             - name: MCP_PORT
               value: "5001"
           resources:
             requests:
-              cpu: "50m"
-              memory: "64Mi"
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
             limits:
-              cpu: "200m"
-              memory: "128Mi"
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
           livenessProbe:
             httpGet:
               path: /health
-              port: 5001
+              port: {{ .Values.containerPort }}
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /health
-              port: 5001
+              port: {{ .Values.containerPort }}
             initialDelaySeconds: 3
             periodSeconds: 5

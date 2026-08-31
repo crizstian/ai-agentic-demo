@@ -1,14 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: harnessbank-demo
-  namespace: harnessbank-demo
+  name: harnessbank-demo-end2end
+  namespace: harnessbank-demo-end2end
   labels:
-    app: harnessbank-demo
+    app: harnessbank-demo-end2end
 spec:
   type: LoadBalancer
   selector:
-    app: harnessbank-demo
+    app: harnessbank-demo-end2end
   ports:
     - port: 80
       targetPort: 3000
