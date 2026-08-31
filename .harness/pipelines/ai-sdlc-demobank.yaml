@@ -7,7 +7,7 @@ pipeline:
   properties:
     ci:
       codebase:
-        connectorRef: org.Cristian_GH
+        connectorRef: CristianConnector
         repoName: ai-agentic-demo
         build: <+input>
         sparseCheckout: []
@@ -112,19 +112,6 @@ pipeline:
                                         level: info
                               - step:
                                   type: HarnessSAST
-                                  name: AI SAST
-                                  identifier: AI_SAST
-                                  spec:
-                                    mode: orchestration
-                                    config: sast
-                                    target:
-                                      type: repository
-                                      detection: auto
-                                    advanced:
-                                      log:
-                                        level: info
-                              - step:
-                                  type: HarnessSAST
                                   name: Harness SCA
                                   identifier: Harness_SCA
                                   spec:
@@ -132,6 +119,20 @@ pipeline:
                                     config: sca
                                     target:
                                       type: repository
+                                      detection: auto
+                                    advanced:
+                                      log:
+                                        level: info
+                              - step:
+                                  type: Semgrep
+                                  name: Semgrep_SAST
+                                  identifier: Semgrep_SAST
+                                  spec:
+                                    mode: orchestration
+                                    config: default
+                                    target:
+                                      type: repository
+                                      workspace: app/
                                       detection: auto
                                     advanced:
                                       log:
@@ -150,7 +151,7 @@ pipeline:
                                   modelName: claude-sonnet-4-6
                               when:
                                 stageStatus: Success
-                                condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.AI_SAST.output.outputVariables.HIGH> > 0
+                                condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
                             contextType: Pipeline
               - stepGroup:
                   name: Build and Supply Chain
@@ -184,54 +185,129 @@ pipeline:
                               dockerfile: services/mcp-financial-data/Dockerfile
                               context: services/mcp-financial-data
                           contextType: Pipeline
-                    - step:
-                        type: SscaOrchestration
-                        name: SBOM DemoBank
-                        identifier: SBOM_DemoBank
-                        spec:
-                          mode: generation
-                          tool:
-                            type: cdxgen
+                    - parallel:
+                        - step:
+                            type: SscaOrchestration
+                            name: SBOM DemoBank
+                            identifier: SBOM_DemoBank
                             spec:
-                              format: cyclonedx-json
-                          source:
-                            type: docker
+                              mode: generation
+                              tool:
+                                type: cdxgen
+                                spec:
+                                  format: cyclonedx-json
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                          contextType: Pipeline
+                        - step:
+                            type: SscaOrchestration
+                            name: SBOM MCP Financial Data
+                            identifier: SBOM_MCP
                             spec:
-                              connector: DockerCristian
-                              image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
-                          attestation:
-                            type: keyless
+                              mode: generation
+                              tool:
+                                type: cdxgen
+                                spec:
+                                  format: cyclonedx-json
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                          contextType: Pipeline
+                    - parallel:
+                        - step:
+                            type: provenance
+                            name: SLSA DemoBank
+                            identifier: SLSA_DemoBank
                             spec:
-                              oidcProvider: harness
-                          resources:
-                            limits:
-                              memory: 500Mi
-                              cpu: "0.5"
-                      contextType: Pipeline
-                    - step:
-                        type: SscaOrchestration
-                        name: SBOM MCP Financial Data
-                        identifier: SBOM_MCP
-                        spec:
-                          mode: generation
-                          tool:
-                            type: cdxgen
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  repo: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: provenance
+                            name: SLSA MCP Financial
+                            identifier: SLSA_MCP_Financial
                             spec:
-                              format: cyclonedx-json
-                          source:
-                            type: docker
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  repo: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                    - parallel:
+                        - step:
+                            type: SscaArtifactSigning
+                            name: Artifact DemoBank
+                            identifier: Artifact_DemoBank
                             spec:
-                              connector: DockerCristian
-                              image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
-                          attestation:
-                            type: keyless
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              signing:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactSigning
+                            name: Artifact MCP Financial
+                            identifier: Artifact_MCP_Financial
                             spec:
-                              oidcProvider: harness
-                          resources:
-                            limits:
-                              memory: 500Mi
-                              cpu: "0.5"
-                      contextType: Pipeline
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              signing:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
                   when:
                     stageStatus: Success
                     condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
@@ -270,6 +346,72 @@ pipeline:
               - identifier: latam_nodepool
           execution:
             steps:
+              - stepGroup:
+                  name: Supply Chain
+                  identifier: Supply_Chain
+                  steps:
+                    - parallel:
+                        - step:
+                            type: SscaEnforcement
+                            name: SBOM DemoBank
+                            identifier: SBOM_DemoBank
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              verifyAttestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              policy:
+                                policySets:
+                                  - SSCA
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SlsaVerification
+                            name: SLSA Verification
+                            identifier: SLSA_Verification
+                            spec:
+                              source:
+                                type: Docker
+                                spec:
+                                  connector: DockerCristian
+                                  image_path: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              verify_attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactVerification
+                            name: Artifact Verification
+                            identifier: Artifact_Verification
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                              verifySign:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                  stepGroupInfra:
+                    type: KubernetesDirect
+                    spec:
+                      connectorRef: org.se_sandbox_k8s
               - stepGroup:
                   name: Canary Deployment
                   identifier: canaryDeployment
@@ -347,12 +489,76 @@ pipeline:
                           spec:
                             tag: latest
           environment:
-            environmentRef: gke_latam
-            deployToAll: false
-            infrastructureDefinitions:
-              - identifier: latam_nodepool
+            useFromStage:
+              stage: Deploy_DemoBank
           execution:
             steps:
+              - stepGroup:
+                  name: Supply Chain
+                  identifier: Supply_Chain
+                  steps:
+                    - parallel:
+                        - step:
+                            type: SscaEnforcement
+                            name: SBOM DemoBank
+                            identifier: SBOM_DemoBank
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              verifyAttestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              policy:
+                                policySets:
+                                  - SSCA
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SlsaVerification
+                            name: SLSA Verification
+                            identifier: SLSA_Verification
+                            spec:
+                              source:
+                                type: Docker
+                                spec:
+                                  connector: DockerCristian
+                                  image_path: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              verify_attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactVerification
+                            name: Artifact Verification
+                            identifier: Artifact_Verification
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                              verifySign:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                  stepGroupInfra:
+                    type: KubernetesDirect
+                    spec:
+                      connectorRef: org.se_sandbox_k8s
               - step:
                   name: Rolling Deployment
                   identifier: rollingDeployment
@@ -374,6 +580,55 @@ pipeline:
                 - AllErrors
               action:
                 type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+    - stage:
+        name: External Traffic Generation
+        identifier: External_Traffic
+        description: Generate N-S traffic from Harness Cloud for Traceable API discovery and baseline learning
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Generate N-S Traffic
+                  identifier: Generate_NS_Traffic
+                  spec:
+                    shell: Sh
+                    command: |-
+                      npm install -g newman --silent
+                      BASE_URL="http://demobank-e2e.selatam.harness-demo.site"
+
+                      echo "=== Generating external N-S traffic for Traceable API baseline ==="
+                      echo "Source: Harness Cloud (public IP) -> Ingress -> DemoBank"
+                      echo "Target: $BASE_URL"
+
+                      for i in $(seq 1 10); do
+                        echo "--- Cycle $i/10 ---"
+                        newman run deploy/k8s/newman-traffic/collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        newman run deploy/k8s/newman-traffic/ai-collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        sleep 5
+                      done
+                      echo "=== External traffic generation complete: 10 cycles x 35 requests = 350 N-S requests ==="
+          buildIntelligence:
+            enabled: false
         when:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")

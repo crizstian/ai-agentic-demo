@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: newman-traffic
+  namespace: harnessbank-demo-end2end
+  labels:
+    app: newman-traffic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: newman-traffic
+  template:
+    metadata:
+      labels:
+        app: newman-traffic
+    spec:
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: ai_agentic_demo_space
+          effect: NoSchedule
+      nodeSelector:
+        scope: ai-agentic-demo
+      containers:
+        - name: general-traffic
+          image: postman/newman:alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CYCLE=0
+              while true; do
+                CYCLE=$((CYCLE + 1))
+                echo "=== General cycle $CYCLE (external N-S) at $(date -u) ==="
+                newman run /etc/newman/collection.json \
+                  --timeout-request 10000 \
+                  --suppress-exit-code 2>&1 || true
+                sleep 30
+              done
+          volumeMounts:
+            - name: collection
+              mountPath: /etc/newman
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        - name: ai-traffic
+          image: postman/newman:alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              CYCLE=0
+              while true; do
+                CYCLE=$((CYCLE + 1))
+                echo "=== AI boost cycle $CYCLE (external N-S) at $(date -u) ==="
+                newman run /etc/newman/ai-collection.json \
+                  --timeout-request 10000 \
+                  --suppress-exit-code 2>&1 || true
+                sleep 15
+              done
+          volumeMounts:
+            - name: ai-collection
+              mountPath: /etc/newman
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: collection
+          configMap:
+            name: newman-collection
+        - name: ai-collection
+          configMap:
+            name: newman-ai-collection
+      restartPolicy: Always

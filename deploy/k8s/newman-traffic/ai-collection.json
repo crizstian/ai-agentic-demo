@@ -1,0 +1,104 @@
+{
+  "info": {
+    "name": "DemoBank AI Traffic Boost",
+    "description": "High-volume AI endpoint traffic for Traceable AI Discovery and baseline learning",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://demobank-e2e.selatam.harness-demo.site"
+    }
+  ],
+  "item": [
+    {
+      "name": "AI Status Check",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/ai/status" }
+    },
+    {
+      "name": "Chat - Check Balance",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"What is my current balance?\", \"session_id\": \"ai-boost-001\"}" }
+      }
+    },
+    {
+      "name": "Chat - Account Summary",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"Give me a summary of my accounts\", \"session_id\": \"ai-boost-002\"}" }
+      }
+    },
+    {
+      "name": "Chat - Transfer Help",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"How do I transfer money to another account?\", \"session_id\": \"ai-boost-003\"}" }
+      }
+    },
+    {
+      "name": "Chat - Savings Advice",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"What savings options do you recommend?\", \"session_id\": \"ai-boost-004\"}" }
+      }
+    },
+    {
+      "name": "Chat - Last Transaction",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"What was my last transaction?\", \"session_id\": \"ai-boost-005\"}" }
+      }
+    },
+    {
+      "name": "Chat - Interest Rate",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"What is the current interest rate on my savings account?\", \"session_id\": \"ai-boost-006\"}" }
+      }
+    },
+    {
+      "name": "Chat - FX Convert",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"Convert 1000 USD to EUR\", \"session_id\": \"ai-boost-007\"}" }
+      }
+    },
+    {
+      "name": "Chat - Payment Due",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"Do I have any pending payments?\", \"session_id\": \"ai-boost-008\"}" }
+      }
+    },
+    {
+      "name": "Chat - Account Types",
+      "request": {
+        "method": "POST",
+        "url": "{{baseUrl}}/api/ai/chat",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"message\": \"What types of accounts do you offer?\", \"session_id\": \"ai-boost-009\"}" }
+      }
+    },
+    {
+      "name": "AI Status Recheck",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/ai/status" }
+    }
+  ]
+}
