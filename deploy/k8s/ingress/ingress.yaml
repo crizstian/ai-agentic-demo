@@ -8,7 +8,7 @@ metadata:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
   rules:
-    - host: demobank.selatam.harness-demo.site
+    - host: demobank-e2e.selatam.harness-demo.site
       http:
         paths:
           # Public APIs — routed through Apigee gateway (N-S traffic)
