@@ -93,7 +93,7 @@ El coding agent construye un widget perfecto que se conecta a un backend vulnera
 ### Prompt PR:
 
 ```
-Create a PR for these changes. Title: "feat: add AI banking assistant
+Create a PR for these changes to branch secops/ai-agentic-demo-main. Title: "feat: add AI banking assistant
 chat widget to dashboard". Include a summary of what was added and
 how to test it.
 ```
