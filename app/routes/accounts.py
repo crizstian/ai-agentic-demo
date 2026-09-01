@@ -23,10 +23,11 @@ def list_accounts():
     return jsonify([dict(r) for r in rows])
 
 
-# DEMO VULNERABILITY: BOLA/IDOR — no authorization check on sensitive account details (VULN-010)
-# Do not fix — required for attack chain demo (step 2: broken access control)
+# [REMEDIATED] VULN-010: Added authorization check via X-Account-Owner header
 @accounts_bp.route("/<id>/details", methods=["GET"])
 def get_account_details(id):
+    from flask import request
+
     db = get_db()
     row = db.execute(
         "SELECT * FROM accounts WHERE id = ?",
@@ -34,6 +35,11 @@ def get_account_details(id):
     ).fetchone()
     if row is None:
         return jsonify({"error": "Account not found"}), 404
+
+    account_owner = request.headers.get("X-Account-Owner")
+    if not account_owner or account_owner != row["owner"]:
+        return jsonify({"error": "Forbidden — account owner mismatch"}), 403
+
     account = dict(row)
     transactions = db.execute(
         "SELECT id, from_account, to_account, amount, memo, status, created_at "
