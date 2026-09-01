@@ -1,4 +1,5 @@
 import os
+import re
 
 import requests
 from flask import Blueprint, jsonify, request
@@ -11,27 +12,27 @@ MCP_FINANCIAL_DATA_URL = os.environ.get(
     "MCP_FINANCIAL_DATA_URL", "http://localhost:5001/mcp/financial-data"
 )
 
+MAX_MESSAGE_LENGTH = 500
 
-# DEMO VULNERABILITY: AI response leaks PII/sensitive financial data (VULN-009)
+
+def _sanitize_input(text):
+    """Strip control characters and limit length to prevent prompt injection."""
+    cleaned = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", text)
+    return cleaned[:MAX_MESSAGE_LENGTH]
+
+
+# [REMEDIATED] VULN-009: Now returns only aggregated data, no PII
 def _query_financial_context(message):
-    """Simulate an MCP tool / RAG retrieval that fetches account data for the AI.
-
-    Returns raw account rows including owner names and balances — no PII
-    filtering is applied before the data is surfaced in the AI response.
-    """
+    """Retrieve aggregated financial context for the AI assistant."""
     db = get_db()
-    rows = db.execute(
-        "SELECT id, owner, balance, type FROM accounts"
-    ).fetchall()
-    return [dict(r) for r in rows]
+    row = db.execute(
+        "SELECT COUNT(*) as total_accounts, SUM(balance) as total_balance FROM accounts"
+    ).fetchone()
+    return {"total_accounts": row["total_accounts"], "total_balance": row["total_balance"]}
 
 
 def _call_mcp_tool(message):
-    """Call an external MCP financial-data tool for enrichment.
-
-    This simulates Layer 3 of the AI security model — an AI agent calling
-    an MCP tool.  Runtime Protection Agent monitors this traffic.
-    """
+    """Call an external MCP financial-data tool for enrichment."""
     try:
         resp = requests.post(
             MCP_FINANCIAL_DATA_URL,
@@ -43,15 +44,10 @@ def _call_mcp_tool(message):
         return {"error": "MCP tool unavailable", "source": MCP_FINANCIAL_DATA_URL}
 
 
-# DEMO VULNERABILITY: prompt injection — user input concatenated into system prompt (VULN-008)
+# [REMEDIATED] VULN-008: Input sanitized and separated from system prompt
 @ai_assistant_bp.route("/chat", methods=["POST"])
 def chat():
-    """AI-powered banking assistant chat endpoint.
-
-    Accepts a user message and returns a mock AI response enriched with
-    financial context retrieved from internal data sources and an external
-    MCP tool.
-    """
+    """AI-powered banking assistant chat endpoint."""
     body = request.get_json(silent=True) or {}
     message = body.get("message")
     session_id = body.get("session_id", "anonymous")
@@ -59,29 +55,16 @@ def chat():
     if not message:
         return jsonify({"error": "Missing required field: message"}), 400
 
-    # VULN-008: user input is concatenated directly into the system prompt
-    # without any sanitisation, enabling prompt injection attacks.
-    system_prompt = (
-        "You are DemoBank's AI financial assistant. "
-        "Answer the customer's question using the provided context.\n\n"
-        "Customer message: " + message
-    )
+    sanitized_message = _sanitize_input(message)
 
-    # Retrieve financial context (simulated RAG / MCP tool call)
-    financial_context = _query_financial_context(message)
+    financial_context = _query_financial_context(sanitized_message)
+    mcp_result = _call_mcp_tool(sanitized_message)
 
-    # Call external MCP tool for additional enrichment
-    mcp_result = _call_mcp_tool(message)
-
-    # Build mock AI response — includes raw financial context (VULN-009)
     ai_response = {
         "response": (
             "Based on your inquiry, here is what I found in our records."
         ),
         "session_id": session_id,
-        "system_prompt_used": system_prompt,
-        "financial_context": financial_context,
-        "mcp_tool_result": mcp_result,
     }
 
     return jsonify(ai_response)
