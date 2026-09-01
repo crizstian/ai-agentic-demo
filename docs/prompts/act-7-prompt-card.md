@@ -44,9 +44,9 @@ En Traceable dashboard, mostrar:
 
 ---
 
-## PASO 2 — Activar Block mode en WAF + API Protection (t=1:00)
+## PASO 2 — Activar Block mode en WAF (t=1:00)
 
-> **Talk Track:** "Activar la protección es tan simple como cambiar un dropdown. Vamos a hacerlo en vivo."
+> **Talk Track:** "Activar la protección es tan simple como cambiar un dropdown. Vamos a hacerlo en vivo — pero con un matiz importante sobre qué capas pueden bloquear y cuáles no."
 
 ### Demostración (UI):
 
@@ -57,18 +57,19 @@ En Traceable Protection Policies:
    - XSS: Action dropdown → cambiar a **"Block"**
    - Command Injection: Action dropdown → cambiar a **"Block"**
 
-2. **API Protection tab** → Para cada rule:
-   - BOLA/IDOR detection: Action dropdown → cambiar a **"Block"**
-   - Rate Limiting: Action dropdown → cambiar a **"Block"**
+2. **API Protection tab** → Mostrar las reglas de BOLA:
+   - Authorization Bypass - Object Level (Object BOLA): **Monitor** (no hay Block)
+   - Authorization Bypass - User Level (User BOLA): **Monitor** (no hay Block)
+   - Opciones disponibles: Monitor / Disable / Testing — **Block no existe**
 
 3. **AI Firewall tab** → Mostrar que solo tiene Monitor y Disable
    - Prompt Injection: se queda en **"Monitor"** (no hay Block mode)
 
-> **Alternativa rápida:** Usar el **Profile system** — cambiar de "Monitoring Mode" profile a "Blocking Mode" profile para activar todo de un click.
+> **Talk Track:** *"Un dropdown. De Monitor a Block para WAF — sin cambiar código, sin redeploy, sin downtime. Esto es virtual patching para patrones conocidos como SQLi, XSS, command injection."*
 
-> **Talk Track:** *"Un dropdown. De Monitor a Block. Sin cambiar código, sin redeploy, sin downtime. Esto es virtual patching — protección inmediata mientras el equipo de desarrollo trabaja en el fix real."*
+> *"Pero noten algo crucial: API Protection — BOLA/IDOR — solo tiene Monitor mode. Detecta accesos no autorizados pero no los bloquea. Lo mismo con AI Firewall: detecta prompt injection pero no la bloquea. Solo WAF tiene Block mode completo."*
 
-> *"Y noten algo importante: AI Firewall solo tiene Monitor mode. Detecta prompt injection pero no la bloquea. WAF y API Protection SÍ bloquean. Esta es la realidad de las herramientas hoy — la detección de AI threats está más adelantada que la mitigación. Por eso necesitamos ambas capas."*
+> *"Esto es la realidad de las capas de protección hoy: WAF bloquea patrones de ataque conocidos. API Protection y AI Firewall DETECTAN amenazas más sutiles (lógica de negocio, AI abuse) pero la MITIGACIÓN de esas requiere cambios en el código — exactamente lo que hicimos en el Acto 3. Por eso Shift Left + Shield Right son complementarios, no sustitutos."*
 
 ---
 
@@ -110,21 +111,22 @@ BLOCK MODE VERIFICATION:
    WAF rule: SQL Injection (Block mode)
    Response: "Access Forbidden"
 
-2. BOLA → 403 Forbidden ✅ BLOCKED
-   API Protection rule: BOLA/IDOR (Block mode)
-   Response: "Access Forbidden"
+2. BOLA → 200 OK ⚠️ NOT BLOCKED (Monitor only)
+   API Protection: BOLA detected but NOT blocked
+   Response: Data returned (but remediated in Act 3 — returns 403 from code fix)
+   Note: API Protection has no Block mode — Monitor/Disable/Testing only
 
 3. Prompt Injection → 200 OK ⚠️ NOT BLOCKED (Monitor only)
    AI Firewall: Prompt Injection detected but NOT blocked
-   Response: AI still responds with data
+   Response: AI responds (but sanitized by Act 3 fix — no PII leaked)
    Note: AI Firewall has no Block mode — detection only
 ```
 
-> **Talk Track:** *"Miren: SQLi — bloqueado, 403. BOLA — bloqueado, 403. Virtual patching activo. Sin cambiar una línea de código.*
+> **Talk Track:** *"Miren: SQLi — bloqueado, 403. Virtual patching activo para WAF patterns. Sin cambiar una línea de código.*
 
-> *Pero prompt injection — 200 OK. El AI sigue respondiendo. AI Firewall lo DETECTA pero no lo BLOQUEA. Y ese es exactamente el gap que AI Security Testing (Paso 4 de AIBOM) identifica: prompt injection confirmada como OWASP LLM01, pero la mitigación depende del código, no del runtime.*
+> *Pero BOLA y prompt injection — ambos pasan. API Protection y AI Firewall los DETECTAN pero no los BLOQUEAN. No tienen Block mode. Y aquí es donde el Acto 3 paga su inversión: el fix de código que hicimos — el header check para BOLA y el input sanitizer para prompt injection — esos SÍ bloquean, porque están en el código."*
 
-> *Virtual patching protege lo que puede proteger HOY. El Remediation Tracker del Acto 6 asegura que el fix de código llegue para lo que no se puede patchear en runtime."*
+> *"La lección: WAF virtual patching es inmediato pero cubre solo patrones conocidos. Para vulnerabilidades de lógica (BOLA) y AI threats (prompt injection), la protección real viene del código. Shift Left (Acto 3) + Shield Right (Acto 7) = cobertura completa."*
 
 ---
 
@@ -271,8 +273,8 @@ Si AI Discovery no muestra datos, usar las detecciones del Acto 5 como evidencia
 
 - [ ] Traceable Protection Policies accesibles
 - [ ] WAF rules visibles con Action dropdown (Monitor → Block)
-- [ ] API Protection rules visibles
-- [ ] AI Firewall rules visibles (solo Monitor/Disable)
+- [ ] API Protection rules visibles (solo Monitor/Disable/Testing — no Block)
+- [ ] AI Firewall rules visibles (solo Monitor/Disable — no Block)
 - [ ] Detecciones del Acto 5 visibles en Threat Activity
 - [ ] AIBOM disponible en pipeline results o SCS
 - [ ] AI Discovery con AI APIs + MCP assets descubiertos
