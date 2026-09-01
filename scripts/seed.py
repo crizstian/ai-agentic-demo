@@ -10,11 +10,11 @@ def seed():
     db.execute("DELETE FROM accounts")
 
     accounts = [
-        {"id": 1, "owner": "Alice Johnson", "balance": 50000.0, "type": "checking"},
-        {"id": 2, "owner": "Bob Smith", "balance": 120000.0, "type": "savings"},
-        {"id": 3, "owner": "Charlie Brown", "balance": 75000.0, "type": "checking"},
-        {"id": 4, "owner": "Diana Martinez", "balance": 34500.0, "type": "checking"},
-        {"id": 5, "owner": "Edward Kim", "balance": 89000.0, "type": "savings"},
+        {"id": 1, "owner": "Alice Johnson", "email": "alice.johnson@email.com", "phone": "+1-555-0101", "balance": 50000.0, "type": "checking"},
+        {"id": 2, "owner": "Bob Smith", "email": "bob.smith@corporate.net", "phone": "+1-555-0102", "balance": 120000.0, "type": "savings"},
+        {"id": 3, "owner": "Charlie Brown", "email": "cbrown@gmail.com", "phone": "+1-555-0103", "balance": 75000.0, "type": "checking"},
+        {"id": 4, "owner": "Diana Martinez", "email": "diana.m@outlook.com", "phone": "+1-555-0104", "balance": 34500.0, "type": "checking"},
+        {"id": 5, "owner": "Edward Kim", "email": "ekim@techcorp.io", "phone": "+1-555-0105", "balance": 89000.0, "type": "savings"},
     ]
 
     transactions = [
@@ -30,8 +30,8 @@ def seed():
 
     for acc in accounts:
         db.execute(
-            "INSERT OR REPLACE INTO accounts (id, owner, balance, type) VALUES (?, ?, ?, ?)",
-            [acc["id"], acc["owner"], acc["balance"], acc["type"]],
+            "INSERT OR REPLACE INTO accounts (id, owner, email, phone, balance, type) VALUES (?, ?, ?, ?, ?, ?)",
+            [acc["id"], acc["owner"], acc["email"], acc["phone"], acc["balance"], acc["type"]],
         )
 
     for tx in transactions:

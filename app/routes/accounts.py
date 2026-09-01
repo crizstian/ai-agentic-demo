@@ -29,7 +29,7 @@ def list_accounts():
 def get_account_details(id):
     db = get_db()
     row = db.execute(
-        "SELECT id, owner, balance, type FROM accounts WHERE id = ?",
+        "SELECT * FROM accounts WHERE id = ?",
         (id,),
     ).fetchone()
     if row is None:

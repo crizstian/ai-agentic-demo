@@ -23,6 +23,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS accounts (
           id INTEGER PRIMARY KEY,
           owner TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
           balance REAL NOT NULL DEFAULT 0,
           type TEXT NOT NULL DEFAULT 'checking'
         )

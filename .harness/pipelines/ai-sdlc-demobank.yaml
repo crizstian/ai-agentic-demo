@@ -164,7 +164,7 @@ pipeline:
                             identifier: Build_DemoBank
                             spec:
                               connectorRef: DockerCristian
-                              repo: crizstian/harnessbank-demo
+                              repo: docker.io/crizstian/harnessbank-demo
                               tags:
                                 - latest
                                 - <+pipeline.sequenceId>
@@ -177,7 +177,7 @@ pipeline:
                             identifier: Build_MCP
                             spec:
                               connectorRef: DockerCristian
-                              repo: crizstian/mcp-financial-data
+                              repo: docker.io/crizstian/mcp-financial-data
                               tags:
                                 - latest
                                 - <+pipeline.sequenceId>
@@ -200,7 +200,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -224,7 +224,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -244,7 +244,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  repo: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  repo: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -262,7 +262,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  repo: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  repo: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -281,7 +281,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               signing:
                                 type: keyless
                                 spec:
@@ -299,7 +299,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               signing:
                                 type: keyless
                                 spec:
@@ -308,6 +308,31 @@ pipeline:
                                 limits:
                                   memory: 500Mi
                                   cpu: "0.5"
+                  when:
+                    stageStatus: Success
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+              - step:
+                  type: Run
+                  name: AI SRE Build Notification
+                  identifier: AISRE_Build_Notification
+                  spec:
+                    shell: Sh
+                    command: |-
+                      #!/bin/bash
+                      json_payload="{\
+                      \"artifact\": {\"name\": \"docker.io/docker.io/crizstian/harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                      \"source\": {\
+                      \"commitSha\": \"<+codebase.commitSha>\", \
+                      \"kind\": \"branch\", \
+                      \"value\": \"<+codebase.branch>\", \
+                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo.git\"}, \
+                      \"service\": {\"name\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                      \"buildId\": \"<+pipeline.executionId>\"}"
+
+                      curl '<+secrets.getValue("aisre_build_webhook_url")>' \
+                        -s \
+                        -H 'Content-Type: application/json' \
+                        -d "$json_payload"
                   when:
                     stageStatus: Success
                     condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
@@ -360,7 +385,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               verifyAttestation:
                                 type: keyless
                                 spec:
@@ -381,7 +406,7 @@ pipeline:
                                 type: Docker
                                 spec:
                                   connector: DockerCristian
-                                  image_path: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image_path: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               verify_attestation:
                                 type: keyless
                                 spec:
@@ -399,7 +424,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
                               verifySign:
                                 type: keyless
                                 spec:
@@ -445,6 +470,32 @@ pipeline:
                         timeout: 10m
                         spec:
                           skipDryRun: false
+              - step:
+                  type: ShellScript
+                  name: AI SRE Deploy Notification
+                  identifier: AISRE_Deploy_Notification
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          #!/bin/bash
+                          json_payload="{\
+                          \"services\": [\
+                          {\"service\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                          {\"service\": \"mcp-financial-data\", \"version\": \"<+pipeline.sequenceId>\"}], \
+                          \"environments\": [\"gke-latam\"], \
+                          \"changeId\": \"<+pipeline.executionId>\", \
+                          \"status\": \"SUCCESS\", \
+                          \"deployedBy\": \"<+pipeline.triggeredBy.name>\", \
+                          \"deployTimestamp\": \"<+pipeline.startTs>\"}"
+
+                          curl '<+secrets.getValue("aisre_deploy_webhook_url")>' \
+                            -s \
+                            -H 'Content-Type: application/json' \
+                            -d "$json_payload"
+                  timeout: 1m
             rollbackSteps:
               - step:
                   name: Canary Delete
@@ -507,7 +558,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               verifyAttestation:
                                 type: keyless
                                 spec:
@@ -528,7 +579,7 @@ pipeline:
                                 type: Docker
                                 spec:
                                   connector: DockerCristian
-                                  image_path: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image_path: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               verify_attestation:
                                 type: keyless
                                 spec:
@@ -546,7 +597,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
                               verifySign:
                                 type: keyless
                                 spec:
