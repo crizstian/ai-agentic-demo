@@ -1,7 +1,80 @@
 // DemoBank AI SDLC — client-side JS
-// Handles the transfer form submission via fetch
 
 document.addEventListener("DOMContentLoaded", function () {
+  // --- AI Chat Widget ---
+  const chatToggle = document.getElementById("chat-toggle");
+  const chatPanel = document.getElementById("chat-panel");
+  const chatClose = document.getElementById("chat-close");
+  const chatMessages = document.getElementById("chat-messages");
+  const chatInput = document.getElementById("chat-input");
+  const chatSend = document.getElementById("chat-send");
+
+  if (chatToggle && chatPanel) {
+    const WELCOME_MSG =
+      "Hello! I'm your AI banking assistant. Ask me about your accounts, transactions, or exchange rates.";
+
+    function addBubble(text, cls) {
+      const div = document.createElement("div");
+      div.className = "chat-bubble " + cls;
+      div.textContent = text;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return div;
+    }
+
+    function openChat() {
+      chatPanel.classList.remove("chat-hidden");
+      if (!chatMessages.hasChildNodes()) {
+        addBubble(WELCOME_MSG, "ai");
+      }
+      chatInput.focus();
+    }
+
+    function closeChat() {
+      chatPanel.classList.add("chat-hidden");
+    }
+
+    function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      addBubble(text, "user");
+      chatInput.value = "";
+      chatSend.disabled = true;
+
+      const typing = addBubble("Thinking...", "typing");
+
+      fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, session_id: "web-client" }),
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          typing.remove();
+          addBubble(data.response || data.error || "No response", "ai");
+        })
+        .catch(function () {
+          typing.remove();
+          addBubble("Sorry, something went wrong. Please try again.", "ai");
+        })
+        .finally(function () {
+          chatSend.disabled = false;
+          chatInput.focus();
+        });
+    }
+
+    chatToggle.addEventListener("click", function () {
+      chatPanel.classList.contains("chat-hidden") ? openChat() : closeChat();
+    });
+    chatClose.addEventListener("click", closeChat);
+    chatSend.addEventListener("click", sendMessage);
+    chatInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") sendMessage();
+    });
+  }
+
+  // --- Transfer form ---
   const form = document.getElementById("transfer-form");
   if (!form) return;
 
