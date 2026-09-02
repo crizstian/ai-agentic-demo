@@ -168,6 +168,61 @@ pipeline:
                                 stageStatus: Success
                                 condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
                             contextType: Pipeline
+                    - step:
+                        type: Run
+                        name: Apply Fixes
+                        identifier: Apply_Fixes
+                        spec:
+                          shell: Bash
+                          command: |-
+                            #!/bin/bash
+                            set -euo pipefail
+
+                            echo "=== Apply Fixes — Checking for agent changes ==="
+
+                            if [ -z "$(git status --porcelain)" ]; then
+                              echo "No agent changes detected — clean pass"
+                              exit 0
+                            fi
+
+                            echo "=== Changes detected from AI agents ==="
+                            git status --short
+                            echo ""
+
+                            SOURCE_BRANCH="<+trigger.sourceBranch>"
+
+                            git config user.email "harness-ai-agent@harness.io"
+                            git config user.name "Harness AI Agent"
+
+                            # Set up auth for push
+                            CURRENT_URL=$(git remote get-url origin)
+                            if [[ "$CURRENT_URL" != *"x-access-token"* ]]; then
+                              AUTH_URL=$(echo "$CURRENT_URL" | sed "s|https://|https://x-access-token:${HARNESS_TOKEN}@|")
+                              git remote set-url origin "$AUTH_URL"
+                            fi
+
+                            # Stage all agent changes
+                            git add -A
+
+                            # Handle detached HEAD (common in PR checkout)
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                              echo "Detached HEAD — switching to $SOURCE_BRANCH"
+                              git stash
+                              git fetch origin "$SOURCE_BRANCH"
+                              git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+                              git stash pop
+                              git add -A
+                            fi
+
+                            git commit -m "fix: AI agent auto-remediation — tests + security fixes"
+
+                            # Push to source branch — re-triggers pipeline
+                            git push origin HEAD:"$SOURCE_BRANCH"
+
+                            echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
+                        when:
+                          stageStatus: Success
               - stepGroup:
                   name: Build and Supply Chain
                   identifier: Supply_Chain_Governance
