@@ -180,13 +180,17 @@ pipeline:
 
                             echo "=== Apply Fixes — Checking for agent changes ==="
 
-                            if [ -z "$(git status --porcelain)" ]; then
+                            # Stage ONLY agent-relevant files (not runtime artifacts)
+                            git add tests/ app/ requirements*.txt 2>/dev/null || true
+
+                            # Check if there are staged changes
+                            if git diff --cached --quiet; then
                               echo "No agent changes detected — clean pass"
                               exit 0
                             fi
 
-                            echo "=== Changes detected from AI agents ==="
-                            git status --short
+                            echo "=== Changes staged from AI agents ==="
+                            git diff --cached --stat
                             echo ""
 
                             SOURCE_BRANCH="<+trigger.sourceBranch>"
@@ -194,15 +198,9 @@ pipeline:
                             git config user.email "harness-ai-agent@harness.io"
                             git config user.name "Harness AI Agent"
 
-                            # Set up auth for push
-                            CURRENT_URL=$(git remote get-url origin)
-                            if [[ "$CURRENT_URL" != *"x-access-token"* ]]; then
-                              AUTH_URL=$(echo "$CURRENT_URL" | sed "s|https://|https://x-access-token:${HARNESS_TOKEN}@|")
-                              git remote set-url origin "$AUTH_URL"
-                            fi
-
-                            # Stage all agent changes
-                            git add -A
+                            # Set up auth — construct URL from scratch to avoid sed issues
+                            REPO=$(git remote get-url origin | grep -oP 'github\.com[:/]\K[^.]+' || echo "crizstian/ai-agentic-demo")
+                            git remote set-url origin "https://x-access-token:${HARNESS_TOKEN}@github.com/${REPO}.git"
 
                             # Handle detached HEAD (common in PR checkout)
                             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -212,7 +210,7 @@ pipeline:
                               git fetch origin "$SOURCE_BRANCH"
                               git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
                               git stash pop
-                              git add -A
+                              git add tests/ app/ requirements*.txt 2>/dev/null || true
                             fi
 
                             git commit -m "fix: AI agent auto-remediation — tests + security fixes"
