@@ -18,6 +18,9 @@ set -euo pipefail
 #   - CORS wildcard PRESENT (origins="*" — VULN-007)
 #   - DB schema uses TEXT ids (original)
 #   - requests library NOT in requirements.txt
+#   - Only 2 unit tests (test_health + test_dashboard smoke)
+#     → Code review agent detects lack of coverage
+#     → Worker agent generates missing tests
 #
 # Files UNTOUCHED (preserved from secops/ai-agentic-demo):
 #   docs/         — prompt cards, architecture diagrams
@@ -108,9 +111,9 @@ if [[ "$CURRENT_BRANCH" == "$SOURCE_BRANCH" ]]; then
 fi
 
 # Warn about uncommitted changes in app files
-DIRTY=$(git -C "$PROJECT_DIR" diff --name-only -- app/ requirements.txt scripts/seed.py 2>/dev/null | wc -l | tr -d ' ')
+DIRTY=$(git -C "$PROJECT_DIR" diff --name-only -- app/ requirements.txt scripts/seed.py tests/ 2>/dev/null | wc -l | tr -d ' ')
 if [[ "$DIRTY" -gt 0 ]]; then
-    print_warn "$DIRTY uncommitted change(s) in app files — will be overwritten"
+    print_warn "$DIRTY uncommitted change(s) in app/test files — will be overwritten"
 fi
 echo ""
 
@@ -165,7 +168,49 @@ print_ok "Cleaned __pycache__"
 echo ""
 
 # =========================================================================
-# 3. Verify STATE 0 invariants
+# 3. Reset tests to minimal coverage (2 tests only)
+# =========================================================================
+echo -e "${CYAN}--- Resetting tests to minimal coverage ---${NC}"
+
+# Restore conftest.py from main (same fixture, works for STATE 0)
+git -C "$PROJECT_DIR" show "${SOURCE_BRANCH}:tests/conftest.py" > "${PROJECT_DIR}/tests/conftest.py" 2>/dev/null
+print_ok "Restored  tests/conftest.py"
+
+# Write minimal test_health.py (1 test — from main)
+git -C "$PROJECT_DIR" show "${SOURCE_BRANCH}:tests/test_health.py" > "${PROJECT_DIR}/tests/test_health.py" 2>/dev/null
+print_ok "Restored  tests/test_health.py (1 test)"
+
+# Write minimal test_dashboard.py (1 test — smoke only)
+cat > "${PROJECT_DIR}/tests/test_dashboard.py" << 'TESTEOF'
+def test_dashboard_returns_200(client):
+    res = client.get("/")
+    assert res.status_code == 200
+TESTEOF
+print_ok "Wrote     tests/test_dashboard.py (1 test)"
+
+# Remove all other test files (code review agent will flag the gap)
+REMOVED_TESTS=0
+for f in "${PROJECT_DIR}"/tests/test_*.py; do
+    fname=$(basename "$f")
+    if [[ "$fname" != "test_health.py" && "$fname" != "test_dashboard.py" ]]; then
+        rm "$f"
+        print_ok "Removed   tests/$fname"
+        ((REMOVED_TESTS++))
+    fi
+done
+
+# Remove JS test file if present
+if [[ -f "${PROJECT_DIR}/tests/dashboard-layout.test.js" ]]; then
+    rm "${PROJECT_DIR}/tests/dashboard-layout.test.js"
+    print_ok "Removed   tests/dashboard-layout.test.js"
+    ((REMOVED_TESTS++))
+fi
+
+print_info "Removed $REMOVED_TESTS test files — only 2 tests remain"
+echo ""
+
+# =========================================================================
+# 4. Verify STATE 0 invariants
 # =========================================================================
 echo -e "${CYAN}--- Verifying STATE 0 invariants ---${NC}"
 
@@ -225,10 +270,28 @@ check "DB schema uses TEXT ids (original)" "$R"
 grep -q "requests" "${PROJECT_DIR}/requirements.txt" 2>/dev/null && R="fail" || R="pass"
 check "No requests library in requirements.txt" "$R"
 
+# Only 2 test files remain
+TEST_COUNT=$(find "${PROJECT_DIR}/tests" -name "test_*.py" | wc -l | tr -d ' ')
+[[ "$TEST_COUNT" -eq 2 ]] && R="pass" || R="fail"
+check "Only 2 test files (test_health.py + test_dashboard.py)" "$R"
+
+# Count actual test functions
+FUNC_COUNT=$(grep -r "^def test_" "${PROJECT_DIR}/tests/" 2>/dev/null | wc -l | tr -d ' ')
+[[ "$FUNC_COUNT" -eq 2 ]] && R="pass" || R="fail"
+check "Only 2 test functions total" "$R"
+
+# No AI test file
+[[ ! -f "${PROJECT_DIR}/tests/test_ai_assistant.py" ]] && R="pass" || R="fail"
+check "No test_ai_assistant.py" "$R"
+
+# No accounts test file
+[[ ! -f "${PROJECT_DIR}/tests/test_accounts.py" ]] && R="pass" || R="fail"
+check "No test_accounts.py (code review agent will flag)" "$R"
+
 echo ""
 
 # =========================================================================
-# 4. Database reset (optional)
+# 5. Database reset (optional)
 # =========================================================================
 if [[ "$RESET_DB" == true ]]; then
     echo -e "${CYAN}--- Resetting database ---${NC}"
@@ -264,7 +327,7 @@ db.close()
 fi
 
 # =========================================================================
-# 5. Commit (optional)
+# 6. Commit (optional)
 # =========================================================================
 if [[ "$DO_COMMIT" == true ]]; then
     echo -e "${CYAN}--- Committing reset ---${NC}"
@@ -274,13 +337,23 @@ if [[ "$DO_COMMIT" == true ]]; then
     # Stage restored files
     git add "${RESTORE_FILES[@]}"
 
-    # Stage deletion of ai_assistant.py if it was tracked
-    if git ls-files --error-unmatch app/routes/ai_assistant.py >/dev/null 2>&1; then
-        git rm --cached app/routes/ai_assistant.py 2>/dev/null || true
-    fi
+    # Stage test files (restored + new minimal)
+    git add tests/conftest.py tests/test_health.py tests/test_dashboard.py
+
+    # Stage deletion of removed files
+    for f in app/routes/ai_assistant.py \
+             tests/test_accounts.py tests/test_admin.py tests/test_ai_assistant.py \
+             tests/test_app_factory.py tests/test_config.py tests/test_db.py \
+             tests/test_fx.py tests/test_k8s_manifest.py tests/test_seed.py \
+             tests/test_statements.py tests/test_transfers.py \
+             tests/dashboard-layout.test.js; do
+        if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+            git rm --cached "$f" 2>/dev/null || true
+        fi
+    done
 
     git commit -m "$(cat <<'EOF'
-chore: reset app code to STATE 0 for end-to-end demo
+chore: reset app code + tests to STATE 0 for end-to-end demo
 
 Restore application source files to pre-Act-1 baseline from main.
 All intentional vulnerabilities are PRESENT for the demo flow:
@@ -289,10 +362,12 @@ All intentional vulnerabilities are PRESENT for the demo flow:
   VULN-006: Reflected XSS (unescaped user input)
   VULN-007: Insecure CORS (wildcard origin)
 
-Removed: ai_assistant.py, chat widget, PII seed data.
-Preserved: docs, deploy, .harness, scripts, policies.
+Tests reduced to 2 (test_health + test_dashboard smoke).
+Code review agent will detect lack of coverage and trigger
+worker agent to generate missing unit tests.
 
-Demo lifecycle: STATE 0 → Act 1 (AI vulns) → Act 3 (remediate) → Act 5-7 (runtime)
+Removed: ai_assistant.py, chat widget, PII seed data, 11 test files.
+Preserved: docs, deploy, .harness, scripts, policies.
 EOF
     )"
 
@@ -301,7 +376,7 @@ EOF
 fi
 
 # =========================================================================
-# 6. Summary
+# 7. Summary
 # =========================================================================
 echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║              Summary                     ║${NC}"
@@ -328,6 +403,7 @@ echo -e "    SQLi (001):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CMDi (002):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    XSS  (006):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CORS (007):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
+echo -e "    Unit tests:    ${YELLOW}2 only${NC} (code review agent will flag, worker agent generates)"
 
 echo ""
 echo -e "  ${CYAN}Preserved:${NC}"

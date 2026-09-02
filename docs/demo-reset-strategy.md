@@ -29,9 +29,13 @@ VULN-007: CORS ✗                 VULN-008: Prompt Inj ✗           Prompt Inj
 No PII in DB                     VULN-009: PII exposure ✗         PII FIXED ✓
 TEXT ids in schema                VULN-010: BOLA ✗                 BOLA FIXED ✓
 3 accounts (DEMO-xxx)            PII in seed (email, phone)       PII removed
-                                 INTEGER ids, 5 accounts          Aggregated queries only
+2 unit tests only                INTEGER ids, 5 accounts          Aggregated queries only
+                                 2 unit tests (same)              50 unit tests (generated)
 
 Source: main                     Source: Act 1 commit              Source: Act 3 commit
+                                                                   Tests: code review agent
+                                                                   detects gap → worker agent
+                                                                   generates missing tests
 ```
 
 ---
@@ -45,7 +49,7 @@ Source: main                     Source: Act 1 commit              Source: Act 3
 git push origin secops/ai-agentic-demo
 ```
 
-Esto restaura los 10 archivos de app desde `main` y elimina `ai_assistant.py`. Verificación automática incluida en el script.
+Esto restaura los 10 archivos de app desde `main`, elimina `ai_assistant.py`, y reduce los tests a solo 2 (test_health + test_dashboard smoke). Verificación automática incluida en el script.
 
 **Archivos que se restauran:**
 
@@ -67,6 +71,26 @@ Esto restaura los 10 archivos de app desde `main` y elimina `ai_assistant.py`. V
 | Archivo | Razón |
 |---------|-------|
 | `app/routes/ai_assistant.py` | No existe en STATE 0 |
+| `tests/test_accounts.py` | Code review agent detectará la falta |
+| `tests/test_admin.py` | Code review agent detectará la falta |
+| `tests/test_ai_assistant.py` | No existe en STATE 0 |
+| `tests/test_app_factory.py` | Code review agent detectará la falta |
+| `tests/test_config.py` | Code review agent detectará la falta |
+| `tests/test_db.py` | Code review agent detectará la falta |
+| `tests/test_fx.py` | Code review agent detectará la falta |
+| `tests/test_k8s_manifest.py` | Code review agent detectará la falta |
+| `tests/test_seed.py` | Code review agent detectará la falta |
+| `tests/test_statements.py` | Code review agent detectará la falta |
+| `tests/test_transfers.py` | Code review agent detectará la falta |
+
+**Tests que QUEDAN (2 total):**
+
+| Archivo | Tests | Propósito |
+|---------|-------|-----------|
+| `tests/test_health.py` | 1 | `GET /health` → 200 |
+| `tests/test_dashboard.py` | 1 | `GET /` → 200 |
+
+**Narrative:** El developer original dejó cobertura mínima. El code review agent identifica que 5 routes (accounts, admin, transfers, fx, statements) no tienen ningún test. El worker agent genera los tests faltantes.
 
 **Archivos que NO se tocan:**
 
@@ -78,7 +102,6 @@ Esto restaura los 10 archivos de app desde `main` y elimina `ai_assistant.py`. V
 | `scripts/` | attack-chain.sh, traceable-demo-setup.sh, demo-reset.sh |
 | `services/` | mcp-financial-data (Flask mock) |
 | `policies/` | OPA rego files |
-| `tests/` | 50 test files |
 
 ---
 
@@ -201,6 +224,7 @@ PRE-DEMO RESET (30 min antes del demo)
    │ ✓ No ai_assistant.py                        │
    │ ✓ No chat widget visible                    │
    │ ✓ SQLi/CMDi/XSS/CORS presentes             │
+   │ ✓ Solo 2 unit tests (health + dashboard)    │
    │ ✓ Traceable policies en Monitor             │
    │ ✓ TME sidecar corriendo (2/2 nginx pod)     │
    │ ✓ Claude Code + Harness MCP respondiendo    │
@@ -213,24 +237,28 @@ PRE-DEMO RESET (30 min antes del demo)
 ## Demo Flow Post-Reset
 
 ```
-STATE 0 ──────────────────────────────────────────────────────────────────
+STATE 0 (2 tests, 4 vulns, no AI) ───────────────────────────────────────
   │
   │ Act 1: SE pide a Claude Code agregar AI chat feature
   │   Claude genera: ai_assistant.py + chat widget + PII seed
   │   Introduce: VULN-008 (prompt inj), VULN-009 (PII), VULN-010 (BOLA)
   │   → git commit + push
   │
-STATE 1 ──────────────────────────────────────────────────────────────────
+STATE 1 (2 tests, 7 vulns, con AI) ──────────────────────────────────────
   │
   │ Act 2: Pipeline auto-trigger
-  │   Build → Test Intelligence → SLSA → SBOM
+  │   Build → Test Intelligence (only 2 tests run!) → SLSA → SBOM
+  │   Code review agent DETECTA:
+  │     "Only 2 unit tests. Routes accounts, admin, transfers, fx,
+  │      statements have ZERO test coverage."
+  │   Worker agent GENERA tests faltantes → commit + push
   │   AI SRE notificado del deploy
   │
   │ Act 3: Pipeline security scanning
   │   Semgrep SAST → encuentra VULN-001,002,006,007,008,009,010
   │   SE pide a Claude Code remediar → commit + push
   │
-STATE 2 ──────────────────────────────────────────────────────────────────
+STATE 2 (50 tests, 0 vulns, con AI) ─────────────────────────────────────
   │
   │ Act 4: Pipeline deploy
   │   Canary → CV → Primary → AI SRE notificado
