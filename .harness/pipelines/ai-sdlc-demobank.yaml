@@ -92,6 +92,21 @@ pipeline:
                               when:
                                 stageStatus: Success
                             contextType: Pipeline
+                          - step:
+                              type: Agent
+                              name: Quality Agent
+                              identifier: Quality_Agent
+                              spec:
+                                agentName: ca_code_unit_test_generator
+                                agentSettings:
+                                  llmConnector: account.harnessAnthropic
+                                  mcpConnectors:
+                                    - mcp_harness_cristian
+                                    - mcp_github_cristian
+                                  modelName: claude-sonnet-4-5-20250929
+                              when:
+                                stageStatus: Success
+                            contextType: Pipeline
                     - stepGroup:
                         name: Security Scanning and Remediation
                         identifier: Security_Scanning
@@ -153,6 +168,62 @@ pipeline:
                                 stageStatus: Success
                                 condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
                             contextType: Pipeline
+                    - step:
+                        type: Run
+                        name: Apply Fixes
+                        identifier: Apply_Fixes
+                        spec:
+                          shell: Bash
+                          envVariables:
+                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
+                          command: |-
+                            #!/bin/bash
+                            set -euo pipefail
+
+                            echo "=== Apply Fixes — Checking for agent changes ==="
+
+                            git add tests/ app/ requirements*.txt 2>/dev/null || true
+
+                            if git diff --cached --quiet; then
+                              echo "No agent changes detected — clean pass"
+                              exit 0
+                            fi
+
+                            echo "=== Changes staged from AI agents ==="
+                            git diff --cached --stat
+                            echo ""
+
+                            SOURCE_BRANCH="<+trigger.sourceBranch>"
+
+                            git config user.email "harness-ai-agent@harness.io"
+                            git config user.name "Harness AI Agent"
+
+                            if [ -z "${GIT_TOKEN:-}" ]; then
+                              echo "ERROR: GIT_TOKEN is empty — cannot push"
+                              exit 1
+                            fi
+                            echo "Token present (${#GIT_TOKEN} chars)"
+
+                            git remote set-url origin "https://github.com/crizstian/ai-agentic-demo.git"
+                            printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
+                            git config credential.helper 'store --file=/tmp/.git-creds'
+
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                              echo "Detached HEAD — switching to $SOURCE_BRANCH"
+                              git stash
+                              git fetch origin "$SOURCE_BRANCH"
+                              git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+                              git stash pop
+                              git add tests/ app/ requirements*.txt 2>/dev/null || true
+                            fi
+
+                            git commit -m "fix: AI agent auto-remediation — tests + security fixes"
+                            git push origin HEAD:"$SOURCE_BRANCH"
+
+                            echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
+                        when:
+                          stageStatus: Success
               - stepGroup:
                   name: Build and Supply Chain
                   identifier: Supply_Chain_Governance
@@ -325,7 +396,7 @@ pipeline:
                       \"commitSha\": \"<+codebase.commitSha>\", \
                       \"kind\": \"branch\", \
                       \"value\": \"<+codebase.branch>\", \
-                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo.git\"}, \
+                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo\"}, \
                       \"service\": {\"name\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
                       \"buildId\": \"<+pipeline.executionId>\"}"
 
@@ -343,7 +414,7 @@ pipeline:
             type: String
             description: ""
             required: false
-            value: <+secrets.getValue("pat")>
+            value: <+secrets.getValue("CristianGithub")>
     - stage:
         name: Deploy DemoBank
         identifier: Deploy_DemoBank
