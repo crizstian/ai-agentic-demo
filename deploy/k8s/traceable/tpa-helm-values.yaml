@@ -3,7 +3,7 @@
 # These values are mirrored in the Harness service definition:
 #   Service: traceable_agent (NativeHelm)
 #   Pipeline: CDSimpleKubernetesDeployment (deploymentType=NativeHelm)
-#   Chart: traceable-agent from traceableai_helm_repo
+#   Chart: traceable-agent v1.71.2 from traceableai_helm_repo
 #
 # The authoritative source is the Harness service definition (inline values).
 # This file is kept in sync for reference and local development.
@@ -13,9 +13,14 @@
 #   2. Run CDSimpleKubernetesDeployment pipeline:
 #      - deploymentType: NativeHelm
 #      - service: traceable_agent
-#      - environment: gke_latam / latam_nodepool
+#      - environment: gke_latam / latam_nodepool_helm
 #   3. Restart ingress controller:
 #      kubectl rollout restart deployment ingress-nginx-controller -n nginx
+#
+# IMPORTANT: The chart's TME config template (tme-config.tmpl.yaml) hardcodes
+# remote.endpoint as api.traceable.ai:443. This is overridden at runtime via
+# ConfigMap tme-template-override mounted in the TPA deployment. The token is
+# injected via TA_REFRESH_TOKEN env var from token-secret in the nginx namespace.
 
 # --- Platform connection ---
 token: <TRACEABLE_AGENT_TOKEN>
@@ -28,6 +33,7 @@ blockingEnabled: true
 regionBlockingEnabled: true
 evaluateBody: true
 extCapEnabled: true
+modsecurityEnabled: true
 
 # --- TME sidecar injection for Nginx Ingress Controller ---
 injector:
@@ -39,3 +45,8 @@ injector:
   blockingConfig:
     enabled: true
     evaluate_body: true
+    modsecurity:
+      enabled: true
+    region_blocking:
+      enabled: true
+    skip_internal_request: true
