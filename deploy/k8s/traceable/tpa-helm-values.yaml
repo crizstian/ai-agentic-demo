@@ -1,33 +1,35 @@
-# Traceable Platform Agent (TPA) — Helm Values
-# Chart: traceableai/traceable-agent
-# Repo:  https://helm.traceable.ai
+# Traceable Platform Agent (TPA) — Helm Values Override
 #
-# Enables inline blocking via Nginx TME sidecar injection.
-# The eBPF tracer continues capturing E-W traffic passively.
+# These values are mirrored in the Harness service definition:
+#   Service: traceable_agent (NativeHelm)
+#   Pipeline: CDSimpleKubernetesDeployment (deploymentType=NativeHelm)
+#   Chart: traceable-agent from traceableai_helm_repo
 #
-# Deploy:
-#   helm repo add traceableai https://helm.traceable.ai
-#   helm upgrade traceable-agent traceableai/traceable-agent \
-#     -n traceableai --values tpa-helm-values.yaml
+# The authoritative source is the Harness service definition (inline values).
+# This file is kept in sync for reference and local development.
 #
-# Pre-requisite: label the nginx namespace BEFORE helm upgrade
-#   kubectl apply -f nginx-namespace-label.yaml
+# To deploy/upgrade via Harness:
+#   1. Label nginx namespace: kubectl apply -f nginx-namespace-label.yaml
+#   2. Run CDSimpleKubernetesDeployment pipeline:
+#      - deploymentType: NativeHelm
+#      - service: traceable_agent
+#      - environment: gke_latam / latam_nodepool
+#   3. Restart ingress controller:
+#      kubectl rollout restart deployment ingress-nginx-controller -n nginx
 
 # --- Platform connection ---
-traceableConfig:
-  collectorEndpoint: "https://app.us9.traceable.ai"
+token: <TRACEABLE_AGENT_TOKEN>
+endpoint: api.us9.traceable.ai
+environment: harnessbank-demo-end2end
+clusterName: se-sandbox
 
-# --- eBPF tracer (existing — E-W traffic, out-of-band) ---
-ebpf:
-  enabled: true
-
-# --- Blocking (global toggle) ---
+# --- Inline blocking (requires TME sidecar on Nginx Ingress) ---
 blockingEnabled: true
 regionBlockingEnabled: true
 evaluateBody: true
 extCapEnabled: true
 
-# --- Nginx TME sidecar injection (inline blocking for N-S traffic) ---
+# --- TME sidecar injection for Nginx Ingress Controller ---
 injector:
   enabled: true
   nginx:
@@ -37,19 +39,3 @@ injector:
   blockingConfig:
     enabled: true
     evaluate_body: true
-
-# --- Resource limits for the TPA deployment ---
-resources:
-  requests:
-    cpu: "100m"
-    memory: "128Mi"
-  limits:
-    cpu: "500m"
-    memory: "256Mi"
-
-# --- Node placement (match demo node pool) ---
-tolerations:
-  - key: dedicated
-    operator: Equal
-    value: ai_agentic_demo_space
-    effect: NoSchedule

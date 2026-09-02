@@ -34,17 +34,22 @@ El ataque fue detectado (Act 5), el incidente fue respondido (Act 6). Pero Prote
 ### Opción A — Via Harness Pipeline (recomendada):
 
 ```
-Run the AI SDLC DemoBank pipeline with the variable
-enable_inline_blocking = "true" on branch secops/ai-agentic-demo-main.
+1. Label nginx namespace (una sola vez):
+   kubectl apply -f deploy/k8s/traceable/nginx-namespace-label.yaml
 
-This will:
-1. Label the nginx namespace for TME sidecar injection
-2. Helm upgrade the TPA with inline blocking values
-3. Restart the ingress controller
-4. Verify TME sidecar is running (2/2 containers)
+2. Run CDSimpleKubernetesDeployment pipeline:
+   - deploymentType: NativeHelm
+   - service: traceable_agent
+   - environment: gke_latam / latam_nodepool
+
+3. Restart ingress controller:
+   kubectl rollout restart deployment ingress-nginx-controller -n nginx
+
+4. Verify TME sidecar (expect 2/2 READY):
+   kubectl get pods -n nginx
 ```
 
-### Opción B — Manual:
+### Opción B — Manual (sin pipeline):
 
 ```bash
 # 1. Label namespace
