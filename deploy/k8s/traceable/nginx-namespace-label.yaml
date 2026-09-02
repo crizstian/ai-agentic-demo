@@ -1,0 +1,16 @@
+# Label the nginx namespace to enable Traceable TME sidecar injection.
+# After applying, the TPA admission webhook will inject a TME sidecar
+# into the ingress-nginx-controller pod on next rollout restart.
+#
+# Apply BEFORE helm upgrade of TPA:
+#   kubectl apply -f nginx-namespace-label.yaml
+#
+# Then restart the ingress controller to trigger injection:
+#   kubectl rollout restart deployment ingress-nginx-controller -n nginx
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx
+  labels:
+    traceableai-inject-tme: enabled

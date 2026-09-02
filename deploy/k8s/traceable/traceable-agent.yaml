@@ -1,26 +1,60 @@
-# Traceable Platform Agent (TPA) — Runtime Protection Agent
-# Provides: API Discovery, Behavioral Detection, Session Stitching,
-#           Threat Scoring, Blocking, Virtual Patching, AI Security
+# Traceable Platform Agent (TPA) — Runtime Protection
 #
-# This agent monitors ALL traffic — N-S (ingress) AND E-W (service-to-service)
-# Acts 5, 6, 7 depend on this agent being deployed
+# Architecture:
+#   ┌─────────────────────────────────────────────────────────────┐
+#   │  Namespace: traceableai                                     │
+#   │  ┌──────────────────────┐  ┌─────────────────────────────┐ │
+#   │  │ traceable-agent      │  │ traceable-ebpf-tracer-ds    │ │
+#   │  │ (Deployment)         │  │ (DaemonSet, 7 nodes)        │ │
+#   │  │ Receives spans,      │  │ Passive E-W traffic capture │ │
+#   │  │ processes, forwards  │  │ Out-of-band — NO blocking   │ │
+#   │  └──────────────────────┘  └─────────────────────────────┘ │
+#   └─────────────────────────────────────────────────────────────┘
+#   ┌─────────────────────────────────────────────────────────────┐
+#   │  Namespace: nginx (labeled: traceableai-inject-tme=enabled) │
+#   │  ┌──────────────────────────────────────────────────────┐  │
+#   │  │ ingress-nginx-controller (Deployment)                │  │
+#   │  │  ├─ controller         (ingress-nginx)               │  │
+#   │  │  └─ tme-sidecar        (Traceable Module Extension)  │  │
+#   │  │     Inline N-S traffic interception — BLOCKING       │  │
+#   │  └──────────────────────────────────────────────────────┘  │
+#   └─────────────────────────────────────────────────────────────┘
+#
+# Blocking matrix:
+#   WAF (SQLi, XSS, CMDi)     → Block (via TME inline)
+#   API Protection (BOLA)     → Block (via TME inline)
+#   Rate Limiting              → Block (via TME inline)
+#   AI Firewall (Prompt Inj)  → Monitor only (product limitation)
+#
+# Deployed via Helm — see tpa-helm-values.yaml for config.
+# The raw manifests below are for reference / initial bootstrap only.
+#
+# Setup sequence:
+#   1. kubectl apply -f nginx-namespace-label.yaml
+#   2. helm upgrade traceable-agent traceableai/traceable-agent \
+#        -n traceableai --values tpa-helm-values.yaml
+#   3. kubectl rollout restart deployment ingress-nginx-controller -n nginx
+#   4. Verify: kubectl get pods -n nginx (expect 2/2 READY)
 
+---
+# TPA Deployment (managed by Helm — reference manifest)
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: traceable-agent
-  namespace: harnessbank-demo-end2end
+  namespace: traceableai
   labels:
-    app: traceable-agent
+    app.kubernetes.io/name: traceable-agent
     component: runtime-protection
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app: traceable-agent
+      app.kubernetes.io/name: traceable-agent
   template:
     metadata:
       labels:
-        app: traceable-agent
+        app.kubernetes.io/name: traceable-agent
         component: runtime-protection
     spec:
       tolerations:
@@ -30,7 +64,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: traceable-agent
-          image: traceable/tpa:latest
+          image: docker.io/traceableai/traceable-agent:1.66.0
           env:
             - name: TA_ENVIRONMENT
               value: "demo"
@@ -50,6 +84,10 @@ spec:
               value: "true"
             - name: TA_AI_SECURITY_ENABLED
               value: "true"
+            - name: TA_BLOCKING_ENABLED
+              value: "true"
+            - name: TA_EVALUATE_BODY
+              value: "true"
           resources:
             requests:
               cpu: "100m"
@@ -57,16 +95,48 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
-          securityContext:
-            capabilities:
-              add: ["NET_RAW", "NET_ADMIN"]
 
 ---
+# eBPF Tracer DaemonSet (managed by Helm — reference manifest)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: traceable-ebpf-tracer-ds
+  namespace: traceableai
+  labels:
+    app.kubernetes.io/name: traceable-agent-ebpf
+    component: ebpf-tracer
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traceable-agent-ebpf
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: traceable-agent-ebpf
+        component: ebpf-tracer
+    spec:
+      containers:
+        - name: traceable-ebpf-tracer
+          image: docker.io/traceableai/ebpf-tracer:1.25.2
+          securityContext:
+            capabilities:
+              add: ["NET_RAW", "NET_ADMIN", "SYS_PTRACE"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+---
+# Traceable config secret (tokens — replace before applying)
 apiVersion: v1
 kind: Secret
 metadata:
   name: traceable-config
-  namespace: harnessbank-demo-end2end
+  namespace: traceableai
 type: Opaque
 stringData:
   reporting-endpoint: "https://app.us9.traceable.ai"

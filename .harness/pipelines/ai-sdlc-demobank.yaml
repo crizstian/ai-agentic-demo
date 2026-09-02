@@ -11,6 +11,12 @@ pipeline:
         repoName: ai-agentic-demo
         build: <+input>
         sparseCheckout: []
+  variables:
+    - name: enable_inline_blocking
+      type: String
+      description: "Set to 'true' to run Traceable inline blocking setup (Act 7 pre-req)"
+      required: false
+      default: "false"
   stages:
     - stage:
         name: Build
@@ -634,6 +640,83 @@ pipeline:
         when:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+    - stage:
+        name: Traceable Inline Blocking
+        identifier: Traceable_Inline_Blocking
+        description: "Act 7 pre-req: Enable Traceable TME sidecar on Nginx Ingress for WAF + API Protection blocking"
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Setup Inline Blocking
+                  identifier: Setup_Inline_Blocking
+                  spec:
+                    shell: Sh
+                    command: |-
+                      set -eu
+                      echo "=== Traceable Inline Blocking Setup ==="
+                      echo "Enabling TME sidecar injection on Nginx Ingress Controller"
+
+                      # 1. Install gcloud + kubectl auth (Harness Cloud runner)
+                      echo "--- Authenticating to GKE cluster ---"
+                      gcloud container clusters get-credentials se-sandbox \
+                        --zone us-east1-b --project sales-209522
+
+                      # 2. Label nginx namespace for TME injection
+                      echo "--- Labeling nginx namespace ---"
+                      kubectl apply -f deploy/k8s/traceable/nginx-namespace-label.yaml
+                      kubectl get ns nginx --show-labels
+
+                      # 3. Helm upgrade TPA with inline blocking values
+                      echo "--- Upgrading Traceable Platform Agent ---"
+                      helm repo add traceableai https://helm.traceable.ai || true
+                      helm repo update traceableai
+
+                      helm upgrade traceable-agent traceableai/traceable-agent \
+                        -n traceableai \
+                        --values deploy/k8s/traceable/tpa-helm-values.yaml \
+                        --set traceableConfig.apiToken=<+secrets.getValue("traceable_api_token")> \
+                        --wait --timeout 5m
+
+                      # 4. Restart ingress controller to trigger TME sidecar injection
+                      echo "--- Restarting Nginx Ingress Controller ---"
+                      kubectl rollout restart deployment ingress-nginx-controller -n nginx
+                      kubectl rollout status deployment ingress-nginx-controller -n nginx --timeout=120s
+
+                      # 5. Verify TME sidecar is running (2/2 containers)
+                      echo "--- Verifying TME sidecar injection ---"
+                      READY=$(kubectl get pods -n nginx -l app.kubernetes.io/name=ingress-nginx \
+                        -o jsonpath='{.items[0].status.containerStatuses[*].ready}' 2>/dev/null || echo "")
+                      echo "Container ready states: $READY"
+
+                      POD_CONTAINERS=$(kubectl get pods -n nginx -l app.kubernetes.io/name=ingress-nginx \
+                        -o jsonpath='{.items[0].spec.containers[*].name}' 2>/dev/null || echo "")
+                      echo "Containers in pod: $POD_CONTAINERS"
+
+                      if echo "$POD_CONTAINERS" | grep -q "tme"; then
+                        echo "✅ TME sidecar injected — inline blocking enabled"
+                        echo "   WAF (SQLi, XSS, CMDi): Block available"
+                        echo "   API Protection (BOLA): Block available"
+                        echo "   Rate Limiting: Block available"
+                        echo "   AI Firewall: Monitor only (product limitation)"
+                      else
+                        echo "⚠️  TME sidecar not detected — check TPA webhook and namespace labels"
+                        echo "   Containers found: $POD_CONTAINERS"
+                      fi
+          buildIntelligence:
+            enabled: false
+        when:
+          pipelineStatus: Success
+          condition: <+pipeline.variables.enable_inline_blocking> == "true"
     - stage:
         name: External Traffic Generation
         identifier: External_Traffic

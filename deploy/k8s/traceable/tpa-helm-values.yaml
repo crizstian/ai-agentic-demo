@@ -1,0 +1,55 @@
+# Traceable Platform Agent (TPA) — Helm Values
+# Chart: traceableai/traceable-agent
+# Repo:  https://helm.traceable.ai
+#
+# Enables inline blocking via Nginx TME sidecar injection.
+# The eBPF tracer continues capturing E-W traffic passively.
+#
+# Deploy:
+#   helm repo add traceableai https://helm.traceable.ai
+#   helm upgrade traceable-agent traceableai/traceable-agent \
+#     -n traceableai --values tpa-helm-values.yaml
+#
+# Pre-requisite: label the nginx namespace BEFORE helm upgrade
+#   kubectl apply -f nginx-namespace-label.yaml
+
+# --- Platform connection ---
+traceableConfig:
+  collectorEndpoint: "https://app.us9.traceable.ai"
+
+# --- eBPF tracer (existing — E-W traffic, out-of-band) ---
+ebpf:
+  enabled: true
+
+# --- Blocking (global toggle) ---
+blockingEnabled: true
+regionBlockingEnabled: true
+evaluateBody: true
+extCapEnabled: true
+
+# --- Nginx TME sidecar injection (inline blocking for N-S traffic) ---
+injector:
+  enabled: true
+  nginx:
+    enabled: true
+    configMapName: "ingress-nginx-controller"
+    containerName: "controller"
+  blockingConfig:
+    enabled: true
+    evaluate_body: true
+
+# --- Resource limits for the TPA deployment ---
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+# --- Node placement (match demo node pool) ---
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: ai_agentic_demo_space
+    effect: NoSchedule
