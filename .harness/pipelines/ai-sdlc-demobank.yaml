@@ -174,16 +174,16 @@ pipeline:
                         identifier: Apply_Fixes
                         spec:
                           shell: Bash
+                          envVariables:
+                            GIT_TOKEN: <+secrets.getValue("pat")>
                           command: |-
                             #!/bin/bash
                             set -euo pipefail
 
                             echo "=== Apply Fixes — Checking for agent changes ==="
 
-                            # Stage ONLY agent-relevant files (not runtime artifacts)
                             git add tests/ app/ requirements*.txt 2>/dev/null || true
 
-                            # Check if there are staged changes
                             if git diff --cached --quiet; then
                               echo "No agent changes detected — clean pass"
                               exit 0
@@ -198,11 +198,16 @@ pipeline:
                             git config user.email "harness-ai-agent@harness.io"
                             git config user.name "Harness AI Agent"
 
-                            # Set up auth — construct URL from scratch to avoid sed issues
-                            REPO=$(git remote get-url origin | grep -oP 'github\.com[:/]\K[^.]+' || echo "crizstian/ai-agentic-demo")
-                            git remote set-url origin "https://x-access-token:${HARNESS_TOKEN}@github.com/${REPO}.git"
+                            if [ -z "${GIT_TOKEN:-}" ]; then
+                              echo "ERROR: GIT_TOKEN is empty — cannot push"
+                              exit 1
+                            fi
+                            echo "Token present (${#GIT_TOKEN} chars)"
 
-                            # Handle detached HEAD (common in PR checkout)
+                            git remote set-url origin "https://github.com/crizstian/ai-agentic-demo.git"
+                            printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
+                            git config credential.helper 'store --file=/tmp/.git-creds'
+
                             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
                             if [ "$CURRENT_BRANCH" = "HEAD" ]; then
                               echo "Detached HEAD — switching to $SOURCE_BRANCH"
@@ -214,8 +219,6 @@ pipeline:
                             fi
 
                             git commit -m "fix: AI agent auto-remediation — tests + security fixes"
-
-                            # Push to source branch — re-triggers pipeline
                             git push origin HEAD:"$SOURCE_BRANCH"
 
                             echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
