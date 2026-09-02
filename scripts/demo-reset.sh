@@ -141,10 +141,10 @@ RESTORE_FAIL=0
 for f in "${RESTORE_FILES[@]}"; do
     if git -C "$PROJECT_DIR" show "${SOURCE_BRANCH}:${f}" > "${PROJECT_DIR}/${f}" 2>/dev/null; then
         print_ok "Restored  $f"
-        ((RESTORE_OK++))
+        ((RESTORE_OK++)) || true
     else
         print_fail "Failed    $f"
-        ((RESTORE_FAIL++))
+        ((RESTORE_FAIL++)) || true
     fi
 done
 
@@ -195,7 +195,7 @@ for f in "${PROJECT_DIR}"/tests/test_*.py; do
     if [[ "$fname" != "test_health.py" && "$fname" != "test_dashboard.py" ]]; then
         rm "$f"
         print_ok "Removed   tests/$fname"
-        ((REMOVED_TESTS++))
+        ((REMOVED_TESTS++)) || true
     fi
 done
 
@@ -203,7 +203,7 @@ done
 if [[ -f "${PROJECT_DIR}/tests/dashboard-layout.test.js" ]]; then
     rm "${PROJECT_DIR}/tests/dashboard-layout.test.js"
     print_ok "Removed   tests/dashboard-layout.test.js"
-    ((REMOVED_TESTS++))
+    ((REMOVED_TESTS++)) || true
 fi
 
 print_info "Removed $REMOVED_TESTS test files — only 2 tests remain"
