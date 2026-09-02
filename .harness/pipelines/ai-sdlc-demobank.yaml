@@ -92,6 +92,21 @@ pipeline:
                               when:
                                 stageStatus: Success
                             contextType: Pipeline
+                          - step:
+                              type: Agent
+                              name: Quality Agent
+                              identifier: Quality_Agent
+                              spec:
+                                agentName: ca_code_unit_test_generator
+                                agentSettings:
+                                  llmConnector: account.harnessAnthropic
+                                  mcpConnectors:
+                                    - mcp_harness_cristian
+                                    - mcp_github_cristian
+                                  modelName: claude-sonnet-4-5-20250929
+                              when:
+                                stageStatus: Success
+                            contextType: Pipeline
                     - stepGroup:
                         name: Security Scanning and Remediation
                         identifier: Security_Scanning
@@ -325,7 +340,7 @@ pipeline:
                       \"commitSha\": \"<+codebase.commitSha>\", \
                       \"kind\": \"branch\", \
                       \"value\": \"<+codebase.branch>\", \
-                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo.git\"}, \
+                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo\"}, \
                       \"service\": {\"name\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
                       \"buildId\": \"<+pipeline.executionId>\"}"
 
