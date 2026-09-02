@@ -1,0 +1,52 @@
+# Traceable Platform Agent (TPA) — Helm Values Override
+#
+# These values are mirrored in the Harness service definition:
+#   Service: traceable_agent (NativeHelm)
+#   Pipeline: CDSimpleKubernetesDeployment (deploymentType=NativeHelm)
+#   Chart: traceable-agent v1.71.2 from traceableai_helm_repo
+#
+# The authoritative source is the Harness service definition (inline values).
+# This file is kept in sync for reference and local development.
+#
+# To deploy/upgrade via Harness:
+#   1. Label nginx namespace: kubectl apply -f nginx-namespace-label.yaml
+#   2. Run CDSimpleKubernetesDeployment pipeline:
+#      - deploymentType: NativeHelm
+#      - service: traceable_agent
+#      - environment: gke_latam / latam_nodepool_helm
+#   3. Restart ingress controller:
+#      kubectl rollout restart deployment ingress-nginx-controller -n nginx
+#
+# IMPORTANT: The chart's TME config template (tme-config.tmpl.yaml) hardcodes
+# remote.endpoint as api.traceable.ai:443. This is overridden at runtime via
+# ConfigMap tme-template-override mounted in the TPA deployment. The token is
+# injected via TA_REFRESH_TOKEN env var from token-secret in the nginx namespace.
+
+# --- Platform connection ---
+token: <TRACEABLE_AGENT_TOKEN>
+endpoint: api.us9.traceable.ai
+environment: harnessbank-demo-end2end
+clusterName: se-sandbox
+
+# --- Inline blocking (requires TME sidecar on Nginx Ingress) ---
+blockingEnabled: true
+regionBlockingEnabled: true
+evaluateBody: true
+extCapEnabled: true
+modsecurityEnabled: true
+
+# --- TME sidecar injection for Nginx Ingress Controller ---
+injector:
+  enabled: true
+  nginx:
+    enabled: true
+    configMapName: "ingress-nginx-controller"
+    containerName: "controller"
+  blockingConfig:
+    enabled: true
+    evaluate_body: true
+    modsecurity:
+      enabled: true
+    region_blocking:
+      enabled: true
+    skip_internal_request: true

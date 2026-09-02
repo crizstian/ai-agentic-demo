@@ -1,33 +1,35 @@
-def test_admin_ping_returns_200(client):
+from unittest.mock import patch
+
+
+@patch("app.routes.admin.subprocess.check_output")
+def test_admin_ping_with_host(mock_subprocess, client):
+    """GET /api/admin/ping?host=example.com returns result with host."""
+    mock_subprocess.return_value = "Pinging: example.com"
+
+    res = client.get("/api/admin/ping?host=example.com")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["host"] == "example.com"
+    assert "result" in data
+    mock_subprocess.assert_called_once()
+
+
+@patch("app.routes.admin.subprocess.check_output")
+def test_admin_ping_default_localhost(mock_subprocess, client):
+    """GET /api/admin/ping without host uses localhost."""
+    mock_subprocess.return_value = "Pinging: localhost"
+
     res = client.get("/api/admin/ping")
     assert res.status_code == 200
-    body = res.get_json()
-    assert "result" in body
+    data = res.get_json()
+    assert data["host"] == "localhost"
+    mock_subprocess.assert_called_once()
 
 
-def test_admin_ping_with_host_param(client):
-    res = client.get("/api/admin/ping?host=127.0.0.1")
+def test_admin_status_success(client):
+    """GET /api/admin/status returns status active."""
+    res = client.get("/api/admin/status")
     assert res.status_code == 200
-    body = res.get_json()
-    assert body["host"] == "127.0.0.1"
-    assert "127.0.0.1" in body["result"]
-
-
-def test_command_injection_in_ping(client):
-    """Verify command injection vulnerability -- user input reaches shell output."""
-    res = client.get("/api/admin/ping?host=127.0.0.1;echo+injected")
-    assert res.status_code == 200
-    body = res.get_json()
-    assert "injected" in body["result"]
-
-
-def test_admin_ping_default(client):
-    res = client.get("/api/admin/ping")
-    assert res.status_code == 200
-    body = res.get_json()
-    assert body["host"] == "localhost"
-    assert "localhost" in body["result"]
-
-
-def test_admin_blueprint_registered(client):
-    assert "admin" in client.application.blueprints
+    data = res.get_json()
+    assert data["status"] == "admin panel active"
+    assert "warning" in data

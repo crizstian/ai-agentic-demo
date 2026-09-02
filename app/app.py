@@ -2,13 +2,12 @@ import os
 
 from markupsafe import escape
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, render_template_string, request
 from flask_cors import CORS
 
 from .db import get_db
 from .routes.accounts import accounts_bp
 from .routes.admin import admin_bp
-from .routes.ai_assistant import ai_assistant_bp
 from .routes.fx import fx_bp
 from .routes.statements import statements_bp
 from .routes.transfers import transfers_bp
@@ -28,8 +27,9 @@ def create_app():
     # (Express did not 308-redirect on a missing trailing slash).
     app.url_map.strict_slashes = False
 
-    allowed_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
-    CORS(app, origins=allowed_origins.split(","))
+    # DEMO VULNERABILITY: insecure CORS wildcard (VULN-007)
+    # Do not fix — required for Semgrep SAST demo finding demo-bank-insecure-cors
+    CORS(app, origins="*")
 
     # API blueprints
     app.register_blueprint(accounts_bp, url_prefix="/api/accounts")
@@ -37,7 +37,6 @@ def create_app():
     app.register_blueprint(statements_bp, url_prefix="/api/statements")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(fx_bp, url_prefix="/api/fx")
-    app.register_blueprint(ai_assistant_bp, url_prefix="/api/ai")
 
     # Dashboard
     @app.route("/")
@@ -88,9 +87,11 @@ def create_app():
     @app.route("/welcome")
     def welcome():
         name = escape(request.args.get("name", "Guest"))
-        return (
-            f"<html><body><h1>Welcome to DemoBank, {name}"
-            f"!</h1><p>This is a demo application.</p></body></html>"
+        return render_template_string(
+            "<html><body><h1>Welcome to DemoBank, "
+            "{{ name }}"
+            "!</h1><p>This is a demo application.</p></body></html>",
+            name=name,
         )
 
     # Health endpoint — correct path for liveness/readiness

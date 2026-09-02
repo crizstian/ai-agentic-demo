@@ -1,5 +1,4 @@
 import re
-import subprocess
 
 from flask import Blueprint, jsonify, request
 
@@ -15,14 +14,7 @@ def ping():
     if not _HOSTNAME_RE.match(host):
         return jsonify({"error": "Invalid hostname"}), 400
 
-    try:
-        stdout = subprocess.run(
-            ["echo", f"Pinging: {host}"],
-            capture_output=True, text=True, check=True,
-        ).stdout
-    except subprocess.CalledProcessError:
-        return jsonify({"error": "Ping failed"}), 500
-    return jsonify({"result": stdout.strip(), "host": host})
+    return jsonify({"result": f"Pinging: {host}", "host": host})
 
 
 @admin_bp.route("/status", methods=["GET"])
