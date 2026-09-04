@@ -770,6 +770,18 @@ pipeline:
                       contextType: Pipeline
             rollbackSteps:
               - step:
+                  name: Disable Feature Flag
+                  identifier: disableFeatureFlag
+                  type: FmeFlagDefaultAllocation
+                  spec:
+                    flagName: ai_chat_enabled
+                    environment: Prod
+                    allocation:
+                      - treatment: "on"
+                        amount: 0
+                      - treatment: "off"
+                        amount: 100
+              - step:
                   name: Rolling Rollback
                   identifier: rollingRollback
                   type: K8sRollingRollback

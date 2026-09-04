@@ -28,9 +28,9 @@ def _get_split_client():
     return _split_client
 
 
-def is_ai_chat_enabled(user_id="demobank-web"):
+def is_ai_chat_backend(user_id="demobank-web"):
     client = _get_split_client()
-    treatment = client.get_treatment(user_id, "ai_chat_enabled")
+    treatment = client.get_treatment(user_id, "ai_chat_backend")
     return treatment == "on"
 
 SYSTEM_PROMPT = """You are DemoBank's AI banking assistant. You have access to customer
@@ -71,13 +71,13 @@ def call_mcp_tool(tool_name, arguments):
 
 @ai_assistant_bp.route("/ff/ai-chat", methods=["GET"])
 def ff_ai_chat():
-    enabled = is_ai_chat_enabled()
-    return jsonify({"flag": "ai_chat_enabled", "enabled": enabled})
+    enabled = is_ai_chat_backend()
+    return jsonify({"flag": "ai_chat_backend", "enabled": enabled})
 
 
 @ai_assistant_bp.route("/chat", methods=["POST"])
 def chat():
-    if not is_ai_chat_enabled():
+    if not is_ai_chat_backend():
         return jsonify({"error": "AI Chat is currently disabled", "status": "disabled"}), 403
 
     body = request.get_json(silent=True) or {}
