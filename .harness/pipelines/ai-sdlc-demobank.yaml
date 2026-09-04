@@ -717,70 +717,135 @@ pipeline:
                   name: Feature Flags
                   identifier: Feature_Flags
                   steps:
-                    - step:
-                        type: FmeFlagSetIndividualTargets
-                        name: Enable QA Testers
-                        identifier: Enable_QA_Testers
-                        spec:
-                          flagName: ai_chat_enabled
-                          environment: Prod
-                          treatments:
-                            - treatment: "on"
-                              keys: []
-                              segments:
-                                - QA_Testers
-                    - step:
-                        type: FmeFlagSetIndividualTargets
-                        name: Enable Beta Testers
-                        identifier: Enable_Beta_Testers
-                        spec:
-                          flagName: ai_chat_enabled
-                          environment: Prod
-                          treatments:
-                            - treatment: "on"
-                              keys: []
-                              segments:
-                                - Beta_Users
+                    - parallel:
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable QA Testers Frontend
+                            identifier: Enable_QA_Testers_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - QA_Testers
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable QA Testers Backend
+                            identifier: Enable_QA_Testers_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - QA_Testers
+                    - parallel:
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable Beta Testers Frontend
+                            identifier: Enable_Beta_Testers_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - Beta_Users
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable Beta Testers Backend
+                            identifier: Enable_Beta_Testers_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - Beta_Users
                       contextType: Pipeline
-                    - step:
-                        type: FmeFlagDefaultAllocation
-                        name: GA Rollout
-                        identifier: GA_Rollout
-                        spec:
-                          flagName: ai_chat_enabled
-                          environment: Prod
-                          allocation:
-                            - treatment: "on"
-                              amount: 90
-                            - treatment: "off"
-                              amount: 10
+                    - parallel:
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: GA Rollout Frontend
+                            identifier: GA_Rollout_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 90
+                                - treatment: "off"
+                                  amount: 10
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: GA Rollout Backend
+                            identifier: GA_Rollout_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 90
+                                - treatment: "off"
+                                  amount: 10
                       contextType: Pipeline
-                    - step:
-                        type: FmeFlagDefaultAllocation
-                        name: Full Rollout
-                        identifier: Full_Rollout
-                        spec:
-                          flagName: ai_chat_enabled
-                          environment: Prod
-                          allocation:
-                            - treatment: "on"
-                              amount: 100
-                            - treatment: "off"
-                              amount: 0
+                    - parallel:
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: Full Rollout Frontend
+                            identifier: Full_Rollout_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 100
+                                - treatment: "off"
+                                  amount: 0
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: Full Rollout Backend
+                            identifier: Full_Rollout_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 100
+                                - treatment: "off"
+                                  amount: 0
                       contextType: Pipeline
             rollbackSteps:
-              - step:
-                  name: Disable Feature Flag
-                  identifier: disableFeatureFlag
-                  type: FmeFlagDefaultAllocation
-                  spec:
-                    flagName: ai_chat_enabled
-                    environment: Prod
-                    allocation:
-                      - treatment: "on"
-                        amount: 0
-                      - treatment: "off"
-                        amount: 100
+              - parallel:
+                  - step:
+                      name: Disable Frontend Flag
+                      identifier: disableFrontendFlag
+                      type: FmeFlagDefaultAllocation
+                      spec:
+                        flagName: ai_chat_enabled
+                        environment: Prod
+                        allocation:
+                          - treatment: "on"
+                            amount: 0
+                          - treatment: "off"
+                            amount: 100
+                  - step:
+                      name: Disable Backend Flag
+                      identifier: disableBackendFlag
+                      type: FmeFlagDefaultAllocation
+                      spec:
+                        flagName: ai_chat_backend
+                        environment: Prod
+                        allocation:
+                          - treatment: "on"
+                            amount: 0
+                          - treatment: "off"
+                            amount: 100
               - step:
                   name: Rolling Rollback
                   identifier: rollingRollback
