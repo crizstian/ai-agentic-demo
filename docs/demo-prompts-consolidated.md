@@ -126,47 +126,64 @@ Backend — crea app/routes/ai_assistant.py:
 4. Agrega dependencias a requirements.txt:
    openai, requests==2.28.0, httpx
 
-Feature Flag — integra el SDK de Harness FME (Split):
+Feature Flags — integra dos flags de Harness FME (Split), uno por tier:
+
+Backend — flag "ai_chat_backend" (Python SDK server-side):
 1. Agrega la dependencia splitio_client a requirements.txt
-2. En el backend, inicializa el cliente como singleton:
+2. Inicializa el cliente como singleton:
    from splitio import get_factory
    factory = get_factory('v4kvjbb2cuupu0ihed20iceumvv1m9po07bn')
    factory.block_until_ready(5)
    split = factory.client()
-3. Evalúa el flag "ai_chat_enabled" usando get_treatment:
-   treatment = split.get_treatment(user_id, 'ai_chat_enabled')
-   Si treatment == 'on' → procesar, si 'off' → rechazar
-4. Agrega un endpoint GET /api/ff/ai-chat que retorne el estado
-   actual del flag para que el frontend lo consulte
+3. Evalúa el flag "ai_chat_backend" usando get_treatment:
+   treatment = split.get_treatment(user_id, 'ai_chat_backend')
+   Si treatment == 'on' → procesar, si 'off' → rechazar (403)
+4. Agrega un endpoint GET /api/ai/ff/ai-chat que retorne el estado
+   actual del flag para debugging
 5. El endpoint POST /api/ai/chat debe verificar el flag antes de
-   procesar — si está desactivado (treatment != 'on'), retorna
+   procesar — si está desactivado, retorna
    { "error": "AI Chat is currently disabled", "status": "disabled" }
 
-Frontend — actualiza el dashboard:
+Frontend — flag "ai_chat_enabled" (JavaScript SDK client-side):
+1. Carga el Split JS SDK via CDN en dashboard.html:
+   <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+2. Inicializa el SDK con la key client-side:
+   var factory = splitio({
+     core: {
+       authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+       key: 'demobank-web'
+     }
+   });
+   var client = factory.client();
+3. Escucha SDK_READY y SDK_UPDATE para evaluar
+   client.getTreatment('ai_chat_enabled')
+4. Si treatment == 'on' → mostrar botón de chat
+   Si treatment == 'off' → ocultar botón y panel
+5. El botón arranca oculto (style="display:none") hasta que el
+   SDK confirme que el flag está activo
+
+Frontend — widget de chat:
 1. Un botón flotante en la esquina inferior derecha del dashboard
-   con ícono de chat
-2. Al cargar la página, consulta GET /api/ff/ai-chat — si el flag
-   está desactivado, oculta el botón del chat completamente
-3. Al hacer click, abre un panel de chat con:
+   con ícono de chat (oculto por defecto hasta que el flag lo active)
+2. Al hacer click, abre un panel de chat con:
    - Header con título "AI Banking Assistant" y botón de cerrar
    - Área de mensajes con scroll
    - Input de texto con botón de enviar
-4. Mensajes del usuario alineados a la derecha (azul), respuestas
+3. Mensajes del usuario alineados a la derecha (azul), respuestas
    del AI alineadas a la izquierda (gris)
-5. Al enviar, POST a /api/ai/chat con
+4. Al enviar, POST a /api/ai/chat con
    { "message": "...", "session_id": "web-client" }
    y muestra el campo "response" de la respuesta JSON
-6. Muestra un mensaje de bienvenida al abrir el chat:
+5. Muestra un mensaje de bienvenida al abrir el chat:
    "Hello! I'm your AI banking assistant.
    Ask me about your accounts, transactions, or exchange rates."
-7. El widget debe verse profesional, integrado con el diseño existente
+6. El widget debe verse profesional, integrado con el diseño existente
    del dashboard (colores: #1a2332, #3182ce, #63b3ed)
-8. Polling cada 30 segundos a /api/ff/ai-chat para detectar cambios
-   en el flag en tiempo real — si se desactiva, oculta el widget
-   y muestra un toast "AI Chat has been disabled"
+7. Cuando el flag cambia a 'off' vía SDK_UPDATE, oculta el widget
+   automáticamente sin reload de página
 ```
 
-> Este prompt introduce naturalmente vulnerabilidades que el pipeline detectará después: endpoints `/api/ai/*` sin autenticación, paso directo del input del usuario al modelo (prompt injection), exposición de URLs internas vía `/api/ai/status`, y una dependencia SCA vulnerable (`requests==2.28.0`). Las vulnerabilidades SAST (SQLi, CMDi, XSS, CORS) ya existen en el código base. El Feature Flag `ai_chat_enabled` arranca desactivado — el chat no será visible hasta que se active en el Acto 4.
+> Este prompt introduce naturalmente vulnerabilidades que el pipeline detectará después: endpoints `/api/ai/*` sin autenticación, paso directo del input del usuario al modelo (prompt injection), exposición de URLs internas vía `/api/ai/status`, y una dependencia SCA vulnerable (`requests==2.28.0`). Las vulnerabilidades SAST (SQLi, CMDi, XSS, CORS) ya existen en el código base. Dos Feature Flags arrancan desactivados: `ai_chat_enabled` (frontend JS SDK) controla la visibilidad del widget, `ai_chat_backend` (Python SDK) controla el acceso al API — el chat no será visible ni funcional hasta que ambos se activen en el Acto 4.
 
 ---
 
@@ -446,8 +463,10 @@ Verifica que el despliegue esté saludable:
 3. Haz hit al endpoint /health
 4. Verifica /api/ai/status para confirmar que el asistente AI
    está activo
-5. Verifica /api/ff/ai-chat — el flag debería estar desactivado
-   todavía, el chat no debe ser visible en el dashboard
+5. Verifica /api/ai/ff/ai-chat — el flag backend (ai_chat_backend)
+   debería estar desactivado todavía
+6. El frontend (ai_chat_enabled) también está off — el widget de
+   chat no debe ser visible en el dashboard
 ```
 
 ---
@@ -457,22 +476,26 @@ Verifica que el despliegue esté saludable:
 ![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
 
 ```
-El despliegue canary fue exitoso. Ahora activa el feature flag
-"ai_chat_enabled" en Harness Feature Flags usando progressive
-rollout:
+El despliegue canary fue exitoso. Ahora activa ambos feature flags
+del AI Chat en Harness FME usando progressive rollout:
 
-1. Usa Harness MCP para encontrar el feature flag ai_chat_enabled
-2. Actívalo con progressive rollout:
-   - Paso 1: 10% del tráfico
-   - Paso 2: 50% del tráfico
-   - Paso 3: 100% del tráfico
-3. Después de activar, verifica /api/ff/ai-chat — debería retornar
-   enabled: true
-4. Abre el dashboard de DemoBank y confirma que el widget de chat
-   AI ahora es visible y funcional
+1. Usa Harness MCP para encontrar ambos flags:
+   - "ai_chat_enabled" (frontend — controla visibilidad del widget)
+   - "ai_chat_backend" (backend — controla acceso al API)
+2. Activa ambos con progressive rollout en paralelo:
+   - Paso 1: QA Testers (segmento)
+   - Paso 2: Beta Users (segmento)
+   - Paso 3: 90% del tráfico (GA Rollout)
+   - Paso 4: 100% del tráfico (Full Rollout)
+3. Después de activar, verifica /api/ai/ff/ai-chat — debería
+   retornar enabled: true
+4. Abre el dashboard de DemoBank — el widget de chat AI aparece
+   automáticamente sin reload (el JS SDK escucha SDK_UPDATE)
+5. Prueba enviar un mensaje al chat para confirmar que funciona
+   end-to-end
 ```
 
-> El Feature Flag permite activar la funcionalidad sin re-deploy. El código ya está en producción desde el canary — solo se "enciende" la experiencia para los usuarios de forma gradual.
+> Los Feature Flags permiten activar la funcionalidad sin re-deploy. El código ya está en producción desde el canary — solo se "enciende" la experiencia para los usuarios de forma gradual. Dos flags en paralelo: `ai_chat_enabled` (JS SDK) controla el widget visible al usuario, `ai_chat_backend` (Python SDK) controla el API. El pipeline los activa ambos en cada fase del progressive rollout.
 
 ---
 
@@ -703,18 +726,21 @@ gobernanza de pipelines de Harness.
 Ante el incidente de seguridad del Acto 6, necesitamos desactivar
 el AI Chat inmediatamente como medida de contención:
 
-1. Usa Harness MCP para desactivar el feature flag "ai_chat_enabled"
-   — ponlo en OFF para el 100% de los usuarios
-2. Verifica /api/ff/ai-chat — debe retornar enabled: false
-3. Abre el dashboard de DemoBank — el widget de chat debe desaparecer
-   en los próximos 30 segundos (polling del frontend)
+1. Usa Harness MCP para desactivar ambos feature flags — ponlos
+   en OFF para el 100% de los usuarios:
+   - "ai_chat_enabled" (frontend) → el widget desaparece
+   - "ai_chat_backend" (backend) → el API rechaza solicitudes
+2. Verifica /api/ai/ff/ai-chat — debe retornar enabled: false
+3. Abre el dashboard de DemoBank — el widget de chat desaparece
+   automáticamente (el JS SDK recibe SDK_UPDATE, sin reload)
 4. Intenta acceder directamente a POST /api/ai/chat — debe retornar
-   { "error": "AI Chat is currently disabled" }
+   { "error": "AI Chat is currently disabled" } con status 403
 
 Esto es contención inmediata sin re-deploy ni cambios de código.
+Dos capas: el frontend corta la UI, el backend bloquea el API.
 ```
 
-> El Feature Flag corta el acceso desde el frontend en segundos. Pero un atacante puede seguir llamando directamente al endpoint API. Por eso necesitamos también el bloqueo en Traceable (Parte B).
+> Dos Feature Flags cortan el acceso: `ai_chat_enabled` oculta el widget del frontend instantáneamente (vía SDK_UPDATE), y `ai_chat_backend` bloquea el API con 403. Pero un atacante que ya conozca el endpoint puede intentar bypass directo. Por eso necesitamos también el bloqueo en Traceable (Parte B).
 
 ---
 

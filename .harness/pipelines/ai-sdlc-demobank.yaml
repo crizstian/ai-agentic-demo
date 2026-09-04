@@ -91,6 +91,12 @@ pipeline:
                                   modelName: claude-sonnet-4-6
                               when:
                                 stageStatus: Success
+                              failureStrategies:
+                                - onFailure:
+                                    errors:
+                                      - AllErrors
+                                    action:
+                                      type: MarkAsSuccess
                             contextType: Pipeline
                           - step:
                               type: Agent
@@ -106,6 +112,12 @@ pipeline:
                                   modelName: claude-sonnet-4-5-20250929
                               when:
                                 stageStatus: Success
+                              failureStrategies:
+                                - onFailure:
+                                    errors:
+                                      - AllErrors
+                                    action:
+                                      type: MarkAsSuccess
                             contextType: Pipeline
                     - stepGroup:
                         name: Security Scanning and Remediation
