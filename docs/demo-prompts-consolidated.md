@@ -5,6 +5,80 @@
 
 ---
 
+## Configuración Inicial
+
+### Pre-requisitos
+
+| Componente | Verificación |
+|-----------|-------------|
+| VS Code + Claude Code | Terminal o extensión activa |
+| Harness IDE Extension | Sidebar visible, pipeline status |
+| Harness MCP conectado | Query de test responde |
+| Branch `secops/ai-agentic-demo` | Checked out, limpio |
+| GKE cluster | `kubectl` configurado, namespace `harnessbank-demo-end2end` |
+| DemoBank URL | `http://demobank-e2e.selatam.harness-demo.site` respondiendo |
+| Traceable agents | Conectados, descubriendo APIs |
+| Newman traffic | E-W + N-S generándose (baseline para Traceable) |
+
+### Estado Inicial (State 0)
+
+El codebase arranca con:
+- DemoBank funcionando: accounts, transfers, statements, admin, fx
+- Backend AI assistant (`app/routes/ai_assistant.py`) con `/api/ai/chat` y `/api/ai/status` — **ya existe pero SIN interfaz visual**
+- 4 vulnerabilidades SAST pre-existentes: SQL injection, Command injection, XSS, CORS inseguro
+- 3 vulnerabilidades AI silenciosas en el backend: prompt injection, PII leak, BOLA/IDOR
+- Dependencia vulnerable `requests==2.28.0`
+- **NO hay chat widget** — esto es lo que el developer construye en Acto 1
+
+### Estructura del Pipeline `AI_SDLC_DemoBank`
+
+```
+PR Trigger → CI Stage (Build):
+├── PR Validation
+│   ├── Build & Lint
+│   ├── Test Intelligence
+│   ├── Change Advisor (claude-sonnet-4-6)
+│   ├── Quality Agent (claude-sonnet-4-5)
+│   ├── Security Scanning [parallel]
+│   │   ├── Secrets Detection (Gitleaks)
+│   │   ├── SCA (Harness SAST)
+│   │   └── SAST (Semgrep)
+│   ├── Security Remediator (claude-sonnet-4-6) — si HIGH > 0
+│   └── Apply Fixes (commit + push)
+│
+├── Build and Supply Chain [solo en merge a secops/ai-agentic-demo-main]
+│   ├── [parallel] Build DemoBank Image + Build MCP Financial Data
+│   ├── [parallel] SBOM DemoBank + SBOM MCP (CycloneDX + keyless)
+│   ├── [parallel] SLSA DemoBank + SLSA MCP (provenance + keyless)
+│   └── [parallel] Artifact Signing DemoBank + MCP (keyless)
+│
+└── AI SRE Build Notification → webhook
+
+Merge Trigger → CD Stages:
+├── Deploy DemoBank
+│   ├── Supply Chain Verification [parallel, stepGroupInfra: K8s]
+│   │   ├── SBOM Enforcement (policy set: SSCA)
+│   │   ├── SLSA Verification (keyless)
+│   │   └── Artifact Verification (keyless)
+│   ├── Canary Deployment (2 pods) → Healthcheck → Canary Delete
+│   ├── Rolling Deployment
+│   └── AI SRE Deploy Notification → webhook
+│
+├── Deploy MCP Financial Data
+│   ├── Supply Chain Verification [parallel, stepGroupInfra: K8s]
+│   ├── Rolling Deployment
+│   └── Feature Flags (Progressive Rollout) [4 fases, dual flag]
+│       ├── QA Testers: ai_chat_enabled + ai_chat_backend → segments
+│       ├── Beta Users: ai_chat_enabled + ai_chat_backend → segments
+│       ├── GA Rollout: 90/10 ambos flags
+│       └── Full Rollout: 100/0 ambos flags
+│       └── [Rollback: ambos flags → 100% off + K8s Rolling Rollback]
+│
+└── External Traffic Generation (Newman, 10 ciclos × 35 req = 350 N-S)
+```
+
+---
+
 ## Cómo Usar Esta Guía
 
 Cada prompt en esta guía está listo para **copiar y pegar**. Cada uno está etiquetado con la herramienta donde se ejecuta:
@@ -107,6 +181,15 @@ Incluye un resumen de lo que se agregó y cómo probarlo.
 ```
 
 > El PR dispara automáticamente el pipeline de Harness. El desarrollador lo ve desde la Extensión IDE — sin necesidad de abrir el navegador.
+
+<details>
+<summary>Contingencia Acto 1</summary>
+
+Si Claude Code tarda demasiado o genera algo inesperado:
+```bash
+git checkout demo/completed -- app/templates/dashboard.html app/static/styles.css app/static/app.js
+```
+</details>
 
 ---
 
@@ -285,11 +368,11 @@ vulnerabilidades que corregimos? ¿Aparecieron issues nuevos?
 
 ---
 
-## Acto 4 — Despliegue Gobernado: Supply Chain + Canary
+## Acto 4 — Despliegue Gobernado: Supply Chain + Canary + Feature Flags
 
-**Qué sucede:** El PR se mergea. Harness construye, firma, atesta y despliega — con SBOM, proveniencia SLSA, firma de artefactos, gates de políticas y despliegue canary. CI genera la cadena de confianza; CD la verifica antes de desplegar un solo pod. Después del canary exitoso, se activa el Feature Flag del AI Chat vía progressive rollout.
+**Qué sucede:** El PR se mergea. Harness construye, firma, atesta y despliega — con SBOM, proveniencia SLSA, firma de artefactos, gates de políticas y despliegue canary. CI genera la cadena de confianza; CD la verifica antes de desplegar un solo pod. Después del canary exitoso, se activan ambos Feature Flags del AI Chat vía progressive rollout. Un stage final genera tráfico externo N-S para que Traceable establezca su baseline.
 
-**Punto clave:** CI genera. CD verifica. Si CI no firma, CD no despliega. El feature se activa gradualmente post-deploy, no en el código.
+**Punto clave:** CI genera. CD verifica. Si CI no firma, CD no despliega. El feature se activa gradualmente post-deploy, no en el código. El tráfico N-S desde Harness Cloud enseña a Traceable qué es "normal" antes del ataque del Acto 5.
 
 ---
 
@@ -390,6 +473,20 @@ rollout:
 ```
 
 > El Feature Flag permite activar la funcionalidad sin re-deploy. El código ya está en producción desde el canary — solo se "enciende" la experiencia para los usuarios de forma gradual.
+
+---
+
+### 4.7 — Generación de Tráfico Externo (automático)
+
+> **Nota:** Este stage se ejecuta automáticamente en el pipeline después del deploy — NO requiere prompt manual. Se documenta para contexto del SE.
+
+El stage `External Traffic Generation` usa Newman (Postman CLI) desde Harness Cloud para enviar 350 solicitudes N-S a DemoBank:
+- 10 ciclos × 2 colecciones (general + AI) × ~17 requests por colección
+- **Propósito:** Establecer el baseline de tráfico legítimo en Traceable antes del ataque del Acto 5
+- **Fuente:** IP pública de Harness Cloud → Ingress → DemoBank (tráfico North-South real)
+- **Colecciones:** `deploy/k8s/newman-traffic/collection.json` + `ai-collection.json`
+
+> Sin este baseline, Traceable no puede distinguir tráfico normal de anómalo. El stage se ejecuta SOLO en merge a `secops/ai-agentic-demo-main`.
 
 ---
 
@@ -507,6 +604,8 @@ Puntos clave:
 
 **Punto clave:** De detección a respuesta en 12 segundos. Análisis de radio de impacto con SBOM en 8 segundos vs 5 días de auditoría manual.
 
+> **Contexto pipeline:** El pipeline ya envía notificaciones a AI SRE en dos puntos: `AI SRE Build Notification` (post-CI, informa artefacto + commit) y `AI SRE Deploy Notification` (post-CD, informa servicios + environment + status). El webhook de Traceable es un tercer canal que dispara el flujo de incidentes.
+
 ---
 
 ### 6.1 — Disparar el incidente
@@ -621,9 +720,26 @@ Esto es contención inmediata sin re-deploy ni cambios de código.
 
 ### Parte B — Activar Modo Block
 
+> **Pre-requisito:** El módulo TME de Traceable debe estar inyectado como sidecar en el Nginx Ingress Controller (2/2 pods en namespace `nginx`). El eBPF tracer observa pasivamente (Monitor); el TME intercepta requests inline (Monitor + Block). Sin TME, Block mode no tiene efecto.
+>
+> Verificar: `kubectl get pods -n nginx` → expect `2/2 Running`
+
 ### 7.2 — Revisar detecciones en modo Monitor
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Traceable > Threat Activity — mostrar todas las detecciones del Acto 5 en modo Monitor.
+
+**Blocking Matrix — qué se puede bloquear y qué solo detectar:**
+
+| Categoría | Block | Motor | Tipo de Detección |
+|-----------|-------|-------|-------------------|
+| Custom Signatures (SQLi, XSS, CMDi) | ✅ 403 | CRS/ModSecurity en TME | Firma determinista |
+| Malicious Sources (IPs) | ✅ 403 | TME IP reputation | Lista de IPs/rangos |
+| Rate Limiting | ✅ 429 | TME rate counter | Threshold por endpoint/IP |
+| Data Loss Prevention | ✅ 403 | TME response filter | Patrones PII en responses |
+| API Protection (BOLA) | ❌ Monitor | Plataforma (behavioral ML) | Inferencia — riesgo de FP |
+| AI Firewall (Prompt Injection) | ❌ Monitor | Plataforma (ML) | Detección ML — riesgo de FP |
+
+> Ataques de **patrón** (firma determinista) → Block automático. Ataques de **lógica de negocio** (ML/behavioral) → Detectar y alertar, el equipo decide.
 
 ---
 
@@ -631,9 +747,9 @@ Esto es contención inmediata sin re-deploy ni cambios de código.
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Traceable > Protection Policies:
 
-- **Custom Signatures** (SQLi, XSS, CMDi) → Block
-- **Malicious Sources** (IP del atacante) → Block
-- **Rate Limiting** (/api/accounts) → Block
+- **Custom Signatures** (SQLi, XSS, CMDi) → Block — virtual patching sin cambios de código
+- **Malicious Sources** (IP del atacante del Acto 5) → Block — corta la IP en el edge
+- **Rate Limiting** (/api/accounts, 10 req/min) → Block — throttle de enumeración
 
 ---
 
@@ -678,6 +794,14 @@ del cluster:
 Para cada uno, reporta: HTTP status, BLOQUEADO o DETECTADO,
 qué categoría de protección.
 ```
+
+> **Resultado esperado:**
+> 1. SQLi → 403 ✅ BLOCKED (Custom Signatures, CRS/ModSecurity en TME)
+> 2. XSS → 403 ✅ BLOCKED (Custom Signatures, CRS/ModSecurity en TME)
+> 3. BOLA → 200 ⚠️ DETECTED only (API Protection, behavioral ML — Monitor by design)
+> 4. Prompt Injection → 200 ⚠️ DETECTED only (AI Firewall, ML — Monitor by design)
+>
+> **Nota:** Si Custom Signatures no bloquea, el TME tiene un polling cycle de ~30s. Esperar y reintentar.
 
 ---
 
@@ -739,30 +863,34 @@ Muestra el ciclo de vida completo como tabla.
 | 1 | Código AI + Feature Flag | Claude Code | 2 |
 | 2 | Gobernanza del Pipeline | Harness AI Chat / Claude Code | 4 |
 | 3 | Remediación de Seguridad | Claude Code | 5 |
-| 4 | Supply Chain + Despliegue + FF Rollout | Harness AI Chat / Claude Code | 6 |
+| 4 | Supply Chain + Canary + FF Rollout | Harness AI Chat / Claude Code | 6 (+1 auto) |
 | 5 | Simulación de Ataque | Claude Code (terminal) | 4 |
 | 6 | Respuesta a Incidentes | Claude Code | 4 |
 | 7 | Kill Switch + Block + AI Security | Claude Code + Traceable UI | 6 |
 
-### Agentes Autónomos del Pipeline (sin prompts — se ejecutan automáticamente)
+### Agentes y Stages Autónomos del Pipeline (sin prompts — se ejecutan automáticamente)
 
-Estos agentes NO se ejecutan desde el IDE. Son parte del pipeline de Harness y se activan automáticamente en cada ejecución:
+Estos componentes NO se ejecutan desde el IDE. Son parte del pipeline de Harness y se activan automáticamente:
 
-| Agente | Paso del Pipeline | Qué Hace |
-|--------|------------------|----------|
-| **Change Advisor** | PR Validation | Code review independiente con evaluación de riesgo estructurada |
-| **Quality Agent** | PR Validation | Genera hasta 10 unit tests happy-path si la cobertura es < 10 tests |
-| **Security Remediator** | Security Scanning | Auto-remedia hallazgos SAST de severidad HIGH, escribe fixes en el workspace |
+| Componente | Paso del Pipeline | Qué Hace |
+|------------|------------------|----------|
+| **Change Advisor** | PR Validation | Code review independiente con evaluación de riesgo (claude-sonnet-4-6) |
+| **Quality Agent** | PR Validation | Genera hasta 10 unit tests happy-path si cobertura < 10 tests (claude-sonnet-4-5) |
+| **Security Remediator** | Security Scanning | Auto-remedia hallazgos SAST de severidad HIGH (claude-sonnet-4-6) |
 | **Apply Fixes** | PR Validation | Commit + push centralizado de todos los cambios de los agentes |
+| **AI SRE Build Notification** | Post-CI | Webhook con artefacto, commit, branch → AI SRE awareness |
+| **AI SRE Deploy Notification** | Post-CD | Webhook con servicios, environment, status → AI SRE awareness |
+| **Feature Flags Rollout** | Post-Deploy MCP | Progressive rollout dual flag: QA → Beta → GA 90/10 → Full 100% |
+| **External Traffic Gen** | Post-Deploy | Newman 350 req N-S para baseline de Traceable |
 
 ### El Arco
 
 ```
-SHIFT LEFT                                              SHIELD RIGHT
-Acto 1  → Acto 2  → Acto 3  → Acto 4        Acto 5 → Acto 6  → Acto 7
-Código    Gobernar  Securizar  Desplegar       Atacar   Responder Proteger
-AI+FF      AI        AI        AI+FF rollout    AI       AI        FF off+Block
-construye  valida    corrige   despliega+activa explota  responde  desactiva+bloquea
+SHIFT LEFT                                                         SHIELD RIGHT
+Acto 1  → Acto 2  → Acto 3  → Acto 4              → Acto 5 → Acto 6  → Acto 7
+Código    Gobernar  Securizar  Desplegar              Atacar   Responder Proteger
+AI+FF      AI        AI        SCS+Canary+FF+Traffic    AI       AI SRE    FF off+Block
+construye  valida    corrige   despliega+activa+baseline explota  responde  desactiva+bloquea
 ```
 
-> **Los agentes de código se detienen en el PR. Los Agentes de Harness llevan cada cambio de forma segura a producción — y protegen lo que corre ahí. Feature Flags controlan el cuándo, Traceable controla el cómo.**
+> **Los agentes de código se detienen en el PR. Los Agentes de Harness llevan cada cambio de forma segura a producción — y protegen lo que corre ahí. Feature Flags controlan el cuándo, Traceable controla el cómo, AI SRE responde en 12 segundos.**
