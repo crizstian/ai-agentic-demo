@@ -16,31 +16,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
     chatToggle.style.display = "none";
 
-    function applyTreatment(treatment) {
-      chatEnabled = treatment === "on";
-      chatToggle.style.display = chatEnabled ? "" : "none";
-      if (!chatEnabled && !chatPanel.classList.contains("chat-hidden")) {
-        chatPanel.classList.add("chat-hidden");
-      }
+    function checkFeatureFlag() {
+      fetch("/api/ai/ff/ai-chat")
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          chatEnabled = data.enabled === true;
+          chatToggle.style.display = chatEnabled ? "" : "none";
+          if (!chatEnabled && !chatPanel.classList.contains("chat-hidden")) {
+            chatPanel.classList.add("chat-hidden");
+          }
+        })
+        .catch(function () {
+          chatEnabled = false;
+          chatToggle.style.display = "none";
+        });
     }
 
-    if (typeof splitio !== "undefined") {
-      var factory = splitio({
-        core: {
-          authorizationKey: "cl0bl351743733kglfasq85pr2kq8ul9rmqv",
-          key: "demobank-web"
-        }
-      });
-      var splitClient = factory.client();
-
-      splitClient.on(splitClient.Event.SDK_READY, function () {
-        applyTreatment(splitClient.getTreatment("ai_chat_enabled"));
-      });
-
-      splitClient.on(splitClient.Event.SDK_UPDATE, function () {
-        applyTreatment(splitClient.getTreatment("ai_chat_enabled"));
-      });
-    }
+    checkFeatureFlag();
+    setInterval(checkFeatureFlag, 30000);
 
     function addBubble(text, cls) {
       const div = document.createElement("div");
