@@ -8,7 +8,6 @@ from .routes.accounts import accounts_bp
 from .routes.admin import admin_bp
 from .routes.fx import fx_bp
 from .routes.statements import statements_bp
-from .routes.ai_assistant import ai_assistant_bp
 from .routes.transfers import transfers_bp
 
 APP_NAME = "DemoBank AI SDLC"
@@ -36,7 +35,6 @@ def create_app():
     app.register_blueprint(statements_bp, url_prefix="/api/statements")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(fx_bp, url_prefix="/api/fx")
-    app.register_blueprint(ai_assistant_bp, url_prefix="/api/ai")
 
     # Dashboard
     @app.route("/")
