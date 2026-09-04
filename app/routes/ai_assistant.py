@@ -3,12 +3,35 @@ import os
 import httpx
 from flask import Blueprint, jsonify, request
 from openai import OpenAI
+from splitio import get_factory
+from splitio.exceptions import TimeoutException
 
 ai_assistant_bp = Blueprint("ai_assistant", __name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4")
 MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:5001")
+FF_SDK_KEY = os.getenv("FF_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
+
+_split_client = None
+
+
+def _get_split_client():
+    global _split_client
+    if _split_client is None:
+        factory = get_factory(FF_SDK_KEY)
+        try:
+            factory.block_until_ready(5)
+        except TimeoutException:
+            pass
+        _split_client = factory.client()
+    return _split_client
+
+
+def is_ai_chat_enabled(user_id="demobank-web"):
+    client = _get_split_client()
+    treatment = client.get_treatment(user_id, "ai_chat_enabled")
+    return treatment == "on"
 
 SYSTEM_PROMPT = """You are DemoBank's AI banking assistant. You have access to customer
 account data, balances, and transaction history through the financial data service.
@@ -46,8 +69,17 @@ def call_mcp_tool(tool_name, arguments):
         return {"error": str(exc)}
 
 
+@ai_assistant_bp.route("/ff/ai-chat", methods=["GET"])
+def ff_ai_chat():
+    enabled = is_ai_chat_enabled()
+    return jsonify({"flag": "ai_chat_enabled", "enabled": enabled})
+
+
 @ai_assistant_bp.route("/chat", methods=["POST"])
 def chat():
+    if not is_ai_chat_enabled():
+        return jsonify({"error": "AI Chat is currently disabled", "status": "disabled"}), 403
+
     body = request.get_json(silent=True) or {}
     user_message = body.get("message", "")
     session_id = body.get("session_id", "default")

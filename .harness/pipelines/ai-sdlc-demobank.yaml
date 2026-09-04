@@ -524,6 +524,31 @@ pipeline:
                               count: 2
                         timeout: 10m
                     - step:
+                        type: Http
+                        name: Portal Healthcheck
+                        identifier: Portal_Healthcheck
+                        spec:
+                          url: http://demobank-e2e.selatam.harness-demo.site
+                          method: GET
+                          headers: []
+                          inputVariables: []
+                          outputVariables: []
+                        timeout: 10s
+                        failureStrategies:
+                          - onFailure:
+                              errors:
+                                - AllErrors
+                              action:
+                                type: Retry
+                                spec:
+                                  retryCount: 3
+                                  onRetryFailure:
+                                    action:
+                                      type: MarkAsSuccess
+                                  condition: ""
+                                  retryIntervals:
+                                    - 3s
+                    - step:
                         name: Canary Delete
                         identifier: canaryDelete
                         type: K8sCanaryDelete
@@ -688,6 +713,61 @@ pipeline:
                   timeout: 10m
                   spec:
                     skipDryRun: false
+              - stepGroup:
+                  name: Feature Flags
+                  identifier: Feature_Flags
+                  steps:
+                    - step:
+                        type: FmeFlagSetIndividualTargets
+                        name: Enable QA Testers
+                        identifier: Enable_QA_Testers
+                        spec:
+                          flagName: ai_chat_enabled
+                          environment: Prod
+                          treatments:
+                            - treatment: "on"
+                              keys: []
+                              segments:
+                                - QA_Testers
+                    - step:
+                        type: FmeFlagSetIndividualTargets
+                        name: Enable Beta Testers
+                        identifier: Enable_Beta_Testers
+                        spec:
+                          flagName: ai_chat_enabled
+                          environment: Prod
+                          treatments:
+                            - treatment: "on"
+                              keys: []
+                              segments:
+                                - Beta_Users
+                      contextType: Pipeline
+                    - step:
+                        type: FmeFlagDefaultAllocation
+                        name: GA Rollout
+                        identifier: GA_Rollout
+                        spec:
+                          flagName: ai_chat_enabled
+                          environment: Prod
+                          allocation:
+                            - treatment: "on"
+                              amount: 90
+                            - treatment: "off"
+                              amount: 10
+                      contextType: Pipeline
+                    - step:
+                        type: FmeFlagDefaultAllocation
+                        name: Full Rollout
+                        identifier: Full_Rollout
+                        spec:
+                          flagName: ai_chat_enabled
+                          environment: Prod
+                          allocation:
+                            - treatment: "on"
+                              amount: 100
+                            - treatment: "off"
+                              amount: 0
+                      contextType: Pipeline
             rollbackSteps:
               - step:
                   name: Rolling Rollback
@@ -754,3 +834,5 @@ pipeline:
         when:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+  fixedInputsOnRerun: true
+  allowStageExecutions: true

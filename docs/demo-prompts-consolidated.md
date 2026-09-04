@@ -21,7 +21,7 @@ Cada prompt en esta guía está listo para **copiar y pegar**. Cada uno está et
 
 **Qué sucede:** Un desarrollador usa un agente AI de código para construir una nueva funcionalidad — un Asistente Bancario AI — en menos de 2 minutos. El agente genera tanto el backend (endpoints API) como el frontend (widget de chat).
 
-**Punto clave:** El agente de código construye rápido, priorizando funcionalidad. Las vulnerabilidades introducidas naturalmente serán detectadas por el pipeline en los actos siguientes.
+**Punto clave:** El agente de código construye rápido, priorizando funcionalidad. Integra Feature Flags desde el día 1 para control de release. Las vulnerabilidades introducidas naturalmente serán detectadas por el pipeline en los actos siguientes.
 
 ---
 
@@ -52,26 +52,47 @@ Backend — crea app/routes/ai_assistant.py:
 4. Agrega dependencias a requirements.txt:
    openai, requests==2.28.0, httpx
 
+Feature Flag — integra el SDK de Harness FME (Split):
+1. Agrega la dependencia splitio_client a requirements.txt
+2. En el backend, inicializa el cliente como singleton:
+   from splitio import get_factory
+   factory = get_factory('v4kvjbb2cuupu0ihed20iceumvv1m9po07bn')
+   factory.block_until_ready(5)
+   split = factory.client()
+3. Evalúa el flag "ai_chat_enabled" usando get_treatment:
+   treatment = split.get_treatment(user_id, 'ai_chat_enabled')
+   Si treatment == 'on' → procesar, si 'off' → rechazar
+4. Agrega un endpoint GET /api/ff/ai-chat que retorne el estado
+   actual del flag para que el frontend lo consulte
+5. El endpoint POST /api/ai/chat debe verificar el flag antes de
+   procesar — si está desactivado (treatment != 'on'), retorna
+   { "error": "AI Chat is currently disabled", "status": "disabled" }
+
 Frontend — actualiza el dashboard:
 1. Un botón flotante en la esquina inferior derecha del dashboard
    con ícono de chat
-2. Al hacer click, abre un panel de chat con:
+2. Al cargar la página, consulta GET /api/ff/ai-chat — si el flag
+   está desactivado, oculta el botón del chat completamente
+3. Al hacer click, abre un panel de chat con:
    - Header con título "AI Banking Assistant" y botón de cerrar
    - Área de mensajes con scroll
    - Input de texto con botón de enviar
-3. Mensajes del usuario alineados a la derecha (azul), respuestas
+4. Mensajes del usuario alineados a la derecha (azul), respuestas
    del AI alineadas a la izquierda (gris)
-4. Al enviar, POST a /api/ai/chat con
+5. Al enviar, POST a /api/ai/chat con
    { "message": "...", "session_id": "web-client" }
    y muestra el campo "response" de la respuesta JSON
-5. Muestra un mensaje de bienvenida al abrir el chat:
+6. Muestra un mensaje de bienvenida al abrir el chat:
    "Hello! I'm your AI banking assistant.
    Ask me about your accounts, transactions, or exchange rates."
-6. El widget debe verse profesional, integrado con el diseño existente
+7. El widget debe verse profesional, integrado con el diseño existente
    del dashboard (colores: #1a2332, #3182ce, #63b3ed)
+8. Polling cada 30 segundos a /api/ff/ai-chat para detectar cambios
+   en el flag en tiempo real — si se desactiva, oculta el widget
+   y muestra un toast "AI Chat has been disabled"
 ```
 
-> Este prompt introduce naturalmente vulnerabilidades que el pipeline detectará después: endpoints `/api/ai/*` sin autenticación, paso directo del input del usuario al modelo (prompt injection), exposición de URLs internas vía `/api/ai/status`, y una dependencia SCA vulnerable (`requests==2.28.0`). Las vulnerabilidades SAST (SQLi, CMDi, XSS, CORS) ya existen en el código base.
+> Este prompt introduce naturalmente vulnerabilidades que el pipeline detectará después: endpoints `/api/ai/*` sin autenticación, paso directo del input del usuario al modelo (prompt injection), exposición de URLs internas vía `/api/ai/status`, y una dependencia SCA vulnerable (`requests==2.28.0`). Las vulnerabilidades SAST (SQLi, CMDi, XSS, CORS) ya existen en el código base. El Feature Flag `ai_chat_enabled` arranca desactivado — el chat no será visible hasta que se active en el Acto 4.
 
 ---
 
@@ -266,9 +287,9 @@ vulnerabilidades que corregimos? ¿Aparecieron issues nuevos?
 
 ## Acto 4 — Despliegue Gobernado: Supply Chain + Canary
 
-**Qué sucede:** El PR se mergea. Harness construye, firma, atesta y despliega — con SBOM, proveniencia SLSA, firma de artefactos, gates de políticas y despliegue canary. CI genera la cadena de confianza; CD la verifica antes de desplegar un solo pod.
+**Qué sucede:** El PR se mergea. Harness construye, firma, atesta y despliega — con SBOM, proveniencia SLSA, firma de artefactos, gates de políticas y despliegue canary. CI genera la cadena de confianza; CD la verifica antes de desplegar un solo pod. Después del canary exitoso, se activa el Feature Flag del AI Chat vía progressive rollout.
 
-**Punto clave:** CI genera. CD verifica. Si CI no firma, CD no despliega.
+**Punto clave:** CI genera. CD verifica. Si CI no firma, CD no despliega. El feature se activa gradualmente post-deploy, no en el código.
 
 ---
 
@@ -342,7 +363,33 @@ Verifica que el despliegue esté saludable:
 3. Haz hit al endpoint /health
 4. Verifica /api/ai/status para confirmar que el asistente AI
    está activo
+5. Verifica /api/ff/ai-chat — el flag debería estar desactivado
+   todavía, el chat no debe ser visible en el dashboard
 ```
+
+---
+
+### 4.6 — Activar AI Chat vía Feature Flag (Progressive Rollout)
+
+![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
+
+```
+El despliegue canary fue exitoso. Ahora activa el feature flag
+"ai_chat_enabled" en Harness Feature Flags usando progressive
+rollout:
+
+1. Usa Harness MCP para encontrar el feature flag ai_chat_enabled
+2. Actívalo con progressive rollout:
+   - Paso 1: 10% del tráfico
+   - Paso 2: 50% del tráfico
+   - Paso 3: 100% del tráfico
+3. Después de activar, verifica /api/ff/ai-chat — debería retornar
+   enabled: true
+4. Abre el dashboard de DemoBank y confirma que el widget de chat
+   AI ahora es visible y funcional
+```
+
+> El Feature Flag permite activar la funcionalidad sin re-deploy. El código ya está en producción desde el canary — solo se "enciende" la experiencia para los usuarios de forma gradual.
 
 ---
 
@@ -541,21 +588,46 @@ gobernanza de pipelines de Harness.
 
 ## Acto 7 — Modo Block + Seguridad AI
 
-**Qué sucede:** Parte A: Las políticas de protección pasan de Monitor a Block — virtual patching sin cambios de código. Parte B: AIBOM descubre componentes AI en el código; AI Discovery y MCP Risk Score revelan qué está activo en producción.
+**Qué sucede:** Parte A: Kill switch — el Feature Flag del AI Chat se desactiva inmediatamente, cortando el acceso desde el frontend. Parte B: Las políticas de protección pasan de Monitor a Block — virtual patching sin cambios de código. Parte C: AIBOM descubre componentes AI en el código; AI Discovery y MCP Risk Score revelan qué está activo en producción.
 
-**Punto clave:** Ataques determinísticos (SQLi, XSS) se bloquean inline. Ataques de comportamiento (BOLA, prompt injection) se detectan vía ML. Los fixes de código cubren lo que el runtime no puede bloquear. Cobertura completa del ciclo de vida.
+**Punto clave:** Tres capas de protección: Feature Flag (corta el frontend instantáneamente), WAAP Block (bloquea el backend), y code fixes (corrigen la raíz). Cobertura completa del ciclo de vida.
 
 ---
 
-### Parte A — Activar Modo Block
+### Parte A — Kill Switch: Desactivar AI Chat vía Feature Flag
 
-### 7.1 — Revisar detecciones en modo Monitor
+### 7.1 — Desactivar el Feature Flag del AI Chat
+
+![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
+
+```
+Ante el incidente de seguridad del Acto 6, necesitamos desactivar
+el AI Chat inmediatamente como medida de contención:
+
+1. Usa Harness MCP para desactivar el feature flag "ai_chat_enabled"
+   — ponlo en OFF para el 100% de los usuarios
+2. Verifica /api/ff/ai-chat — debe retornar enabled: false
+3. Abre el dashboard de DemoBank — el widget de chat debe desaparecer
+   en los próximos 30 segundos (polling del frontend)
+4. Intenta acceder directamente a POST /api/ai/chat — debe retornar
+   { "error": "AI Chat is currently disabled" }
+
+Esto es contención inmediata sin re-deploy ni cambios de código.
+```
+
+> El Feature Flag corta el acceso desde el frontend en segundos. Pero un atacante puede seguir llamando directamente al endpoint API. Por eso necesitamos también el bloqueo en Traceable (Parte B).
+
+---
+
+### Parte B — Activar Modo Block
+
+### 7.2 — Revisar detecciones en modo Monitor
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Traceable > Threat Activity — mostrar todas las detecciones del Acto 5 en modo Monitor.
 
 ---
 
-### 7.2 — Cambiar a modo Block
+### 7.3 — Cambiar a modo Block
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Traceable > Protection Policies:
 
@@ -565,7 +637,7 @@ gobernanza de pipelines de Harness.
 
 ---
 
-### 7.3 — Verificar que el bloqueo está activo
+### 7.4 — Verificar que el bloqueo está activo
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
 
@@ -609,9 +681,9 @@ qué categoría de protección.
 
 ---
 
-### Parte B — Seguridad AI
+### Parte C — Seguridad AI
 
-### 7.4 — Descubrir componentes AI (AIBOM)
+### 7.5 — Descubrir componentes AI (AIBOM)
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
 
@@ -629,7 +701,7 @@ Quiero ver:
 
 ---
 
-### 7.5 — AI Discovery y MCP Risk Score
+### 7.6 — AI Discovery y MCP Risk Score
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Traceable > AI Security Dashboard:
 
@@ -639,7 +711,7 @@ Quiero ver:
 
 ---
 
-### 7.6 — Mapeo de ciclo de vida completo
+### 7.7 — Mapeo de ciclo de vida completo
 
 ![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
 
@@ -664,13 +736,13 @@ Muestra el ciclo de vida completo como tabla.
 
 | Acto | Enfoque | Herramienta Principal | Prompts |
 |------|---------|----------------------|---------|
-| 1 | Código AI | Claude Code | 2 |
+| 1 | Código AI + Feature Flag | Claude Code | 2 |
 | 2 | Gobernanza del Pipeline | Harness AI Chat / Claude Code | 4 |
 | 3 | Remediación de Seguridad | Claude Code | 5 |
-| 4 | Supply Chain + Despliegue | Harness AI Chat / Claude Code | 5 |
+| 4 | Supply Chain + Despliegue + FF Rollout | Harness AI Chat / Claude Code | 6 |
 | 5 | Simulación de Ataque | Claude Code (terminal) | 4 |
 | 6 | Respuesta a Incidentes | Claude Code | 4 |
-| 7 | Modo Block + Seguridad AI | Claude Code + Traceable UI | 4 |
+| 7 | Kill Switch + Block + AI Security | Claude Code + Traceable UI | 6 |
 
 ### Agentes Autónomos del Pipeline (sin prompts — se ejecutan automáticamente)
 
@@ -686,11 +758,11 @@ Estos agentes NO se ejecutan desde el IDE. Son parte del pipeline de Harness y s
 ### El Arco
 
 ```
-SHIFT LEFT                                          SHIELD RIGHT
-Acto 1 → Acto 2 → Acto 3 → Acto 4     Acto 5 → Acto 6 → Acto 7
-Código   Gobernar  Securizar Desplegar   Atacar   Responder Proteger
-  AI       AI        AI        AI          AI        AI        AI
-construye valida    corrige   despliega  explota  responde  gobierna
+SHIFT LEFT                                              SHIELD RIGHT
+Acto 1  → Acto 2  → Acto 3  → Acto 4        Acto 5 → Acto 6  → Acto 7
+Código    Gobernar  Securizar  Desplegar       Atacar   Responder Proteger
+AI+FF      AI        AI        AI+FF rollout    AI       AI        FF off+Block
+construye  valida    corrige   despliega+activa explota  responde  desactiva+bloquea
 ```
 
-> **Los agentes de código se detienen en el PR. Los Agentes de Harness llevan cada cambio de forma segura a producción — y protegen lo que corre ahí.**
+> **Los agentes de código se detienen en el PR. Los Agentes de Harness llevan cada cambio de forma segura a producción — y protegen lo que corre ahí. Feature Flags controlan el cuándo, Traceable controla el cómo.**
