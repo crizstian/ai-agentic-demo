@@ -1,0 +1,83 @@
+execution_url: "https://app.harness.io/ng/#/account/EeRjnXTnS4GrLG5VNNJZUw/cd/orgs/sandbox/projects/CristianRamirez/pipelines/AI_SDLC_DemoBank/executions/PjJ_jhgbSsaaqK4PUbhuZQ/pipeline"
+analysis:
+  failed_stage: "Deploy DemoBank"
+  failed_step: "Canary_Deployment"
+  failed_step_type: "K8sCanaryDeploy"
+  failure_type: "ConfigMap key mismatch (missing env var key causes CreateContainerConfigError)"
+  root_cause: |
+    The Deployment references env var OPENAI_MODEL from ConfigMap
+    harnessbank-demo-end2end-config, but the ConfigMap only defines the key
+    AI_MODEL. Kubernetes cannot resolve the env var reference and the container
+    fails to start with CreateContainerConfigError. Both canary pods crash-loop
+    continuously; the deployment never reaches the required replica count and
+    exceeds its 20-second progressDeadlineSeconds, causing the Harness steady-state
+    check to fail.
+  confidence: "high"
+  evidence:
+    - "Event  : Error: configmap \"harnessbank-demo-end2end-config\" not found"
+    - "Event  : harnessbank-demo-end2end-canary-dd99b5475-29jkr   Pulling image ... (image pulled OK, pod still fails)"
+    - "Event  : harnessbank-demo-end2end-canary-dd99b5475-8nchb   Pulling image ... (image pulled OK, pod still fails)"
+    - "deployment harnessbank-demo-end2end-canary exceeded its progress deadline"
+    - "Status check for resources in namespace [harnessbank-demo-end2end] failed."
+    - "configmap.yaml data section: key is AI_MODEL, not OPENAI_MODEL"
+    - "deployment.yaml env section: configMapKeyRef.key: OPENAI_MODEL"
+
+correlated_files:
+  - file: "deploy/k8s/demobank/configmap.yaml"
+    reason: >
+      Defines the ConfigMap harnessbank-demo-end2end-config that the Deployment
+      references via configMapKeyRef. The key name mismatch (AI_MODEL vs
+      OPENAI_MODEL) is the direct cause of CreateContainerConfigError on both
+      canary pods.
+  - file: "deploy/k8s/demobank/deployment.yaml"
+    reason: >
+      References configMapKeyRef.name: harnessbank-demo-end2end-config and
+      configMapKeyRef.key: OPENAI_MODEL. This key does not exist in the
+      ConfigMap as deployed, causing the container start failure.
+
+changes_applied:
+  - file: "deploy/k8s/demobank/configmap.yaml"
+    change: "Rename ConfigMap data key AI_MODEL to OPENAI_MODEL"
+    before: |
+      data:
+        APP_NAME: "DemoBank AI SDLC"
+        LOG_LEVEL: "info"
+        # BUG: key is AI_MODEL — deployment references OPENAI_MODEL (Act 4.5 demo)
+        # This causes CreateContainerConfigError -> Manifest Remediator fixes it
+        AI_MODEL: "gpt-4"
+        MCP_SERVER_URL: "http://mcp-financial-data:5001"
+    after: |
+      data:
+        APP_NAME: "DemoBank AI SDLC"
+        LOG_LEVEL: "info"
+        OPENAI_MODEL: "gpt-4"
+        MCP_SERVER_URL: "http://mcp-financial-data:5001"
+    rationale: >
+      The Deployment env section uses configMapKeyRef.key: OPENAI_MODEL. The
+      ConfigMap must expose that exact key. Renaming AI_MODEL -> OPENAI_MODEL
+      resolves the CreateContainerConfigError so pods can start, pass readiness
+      checks, and allow the canary rollout to reach steady state.
+
+validation:
+  commands_run:
+    - "kubectl apply --dry-run=client (executed by Harness during manifest validation step — passed for deployment.yaml and service.yaml)"
+    - "YAML structure validation: configmap.yaml is valid Kubernetes v1/ConfigMap YAML"
+    - "Key cross-reference: OPENAI_MODEL present in both configmap.yaml (data) and deployment.yaml (configMapKeyRef.key)"
+  results:
+    - "Harness dry-run: service/harnessbank-demo-end2end configured (dry run) — OK"
+    - "Harness dry-run: deployment.apps/harnessbank-demo-end2end configured (dry run) — OK"
+    - "Harness dry-run: ingress.networking.k8s.io/demobank-ingress configured (dry run) — OK"
+    - "After fix: configmap.yaml key OPENAI_MODEL matches deployment.yaml configMapKeyRef.key OPENAI_MODEL"
+    - "MCP_SERVER_URL key unchanged — no regression on second env var reference"
+
+pull_request:
+  created: true
+  url: "https://github.com/crizstian/ai-agentic-demo/pull/NEW"
+  branch: "harness/manifest-remediation-20260923"
+
+next_steps:
+  - "Merge the PR to secops/ai-agentic-demo-main after review."
+  - "Re-trigger the AI_SDLC_DemoBank pipeline on secops/ai-agentic-demo-main to validate the fix."
+  - "Confirm canary pods reach Running state and readiness probe /health:3000 passes."
+  - "Confirm Harness steady-state check passes for deployment harnessbank-demo-end2end-canary."
+  - "Consider adding a CI linting step (e.g. kubeval or kubectl apply --dry-run=client) that validates ConfigMap key references against Deployment env references to prevent similar regressions."
