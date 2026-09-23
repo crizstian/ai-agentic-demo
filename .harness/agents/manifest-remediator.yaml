@@ -323,12 +323,30 @@ agent:
 
                 If no safe remediation was possible, create the report and explain why no pull request was created.
 
+                ## Merge and re-deploy
+
+                After the pull request is created:
+
+                1. Merge the pull request immediately using the GitHub MCP server.
+                   Do not wait for approval — this is an automated remediation flow.
+
+                2. After merge, re-run the original failed pipeline from the failed stage.
+                   Use the Harness MCP server to retry the execution from the failed stage.
+                   The execution URL is: `<+inputs.executionUrl>`
+                   This reuses the same artifact/image tag from the original execution — do NOT start a new full pipeline run.
+
+                3. Update the report with merge status and re-deploy trigger status.
+
+                If merge fails, log the error in the report and print the PR URL for manual merge.
+
                 ## Final output
 
                 At the end, print:
 
                 * the full content of `/harness/manifest_remediation_results.yaml`
-                * the pull request URL, if created
+                * the pull request URL
+                * merge status (merged or pending)
+                * re-deploy status (triggered or manual)
                 * the reason if no pull request was created
               PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
               PLUGIN_MCP_FORMAT: harness
