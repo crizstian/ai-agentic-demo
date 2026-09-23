@@ -37,6 +37,8 @@ set -euo pipefail
 #     → Act 2: pipeline governs (build, test, SLSA)
 #     → Act 3: security agent finds + remediates ALL vulns
 #     → Act 4: deploy (canary + CV)
+#     → Act 4.5: ConfigMap key mismatch → CreateContainerConfigError
+#               → rollback → AI Manifest Remediator agent creates PR
 #     → Act 5: attacker exploits (Traceable detects in Monitor)
 #     → Act 6: AI SRE responds
 #     → Act 7: Block mode + AI Security
@@ -427,6 +429,7 @@ echo -e "      ↓ Act 1: coding agent adds AI + vulns (008/009/010)"
 echo -e "      ↓ Act 2: pipeline governs (build, test, SLSA)"
 echo -e "      ↓ Act 3: security agent remediates ALL vulns"
 echo -e "      ↓ Act 4: deploy (canary + CV + governance)"
+echo -e "      ↓ Act 4.5: ConfigMap error → AI Manifest Remediator → PR"
 echo -e "      ↓ Act 5: attacker exploits → Traceable detects (Monitor)"
 echo -e "      ↓ Act 6: AI SRE responds (12s, 6 actions)"
 echo -e "      ↓ Act 7: Block mode + AI Security"

@@ -260,8 +260,14 @@ STATE 1 (2 tests, 7 vulns, con AI) ───────────────
   │
 STATE 2 (50 tests, 0 vulns, con AI) ─────────────────────────────────────
   │
-  │ Act 4: Pipeline deploy
-  │   Canary → CV → Primary → AI SRE notificado
+  │ Act 4: Pipeline deploy (CI: Build + Supply Chain)
+  │   Canary → FAILS (ConfigMap key mismatch: AI_MODEL vs OPENAI_MODEL)
+  │
+  │ Act 4.5: Manifest Remediation (automático en pipeline)
+  │   Manifest Remediator Agent diagnostica CreateContainerConfigError
+  │   Apply Fix → kubectl patch configmap (agrega OPENAI_MODEL key)
+  │   Cleanup failed canary → Canary Re-Deploy → Healthcheck OK
+  │   Primary deploy → AI SRE notificado
   │
   │ Act 5: Attack chain (scripts/attack-chain.sh o manual)
   │   SQLi, BOLA, Prompt Injection → Traceable DETECTA en Monitor
