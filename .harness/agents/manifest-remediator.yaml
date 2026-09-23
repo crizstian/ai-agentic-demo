@@ -263,15 +263,25 @@ agent:
 
                 Record validation results in the report.
 
+                ## Remediation constraints
+
+                Fix ONLY the direct root cause of the failure. Do NOT change other deployment settings such as `progressDeadlineSeconds`, `minReadySeconds`, `failureThreshold`, `initialDelaySeconds`, `periodSeconds`, or probe configurations unless they are the DIRECT and ONLY cause of the failure.
+
+                Do NOT remove or modify existing code comments.
+
+                Do NOT make "improvement" changes beyond the minimal fix required.
+
                 ## Pull request
 
-                Do NOT create a new branch. Commit and push the fix directly to `secops/ai-agentic-demo`.
+                Create a new branch named `fix/manifest-remediation` from `secops/ai-agentic-demo`. If the branch already exists, delete it first and recreate it.
 
                 Repository: `crizstian/ai-agentic-demo`
 
+                Commit and push the fix to the `fix/manifest-remediation` branch.
+
                 Commit message: `Fix Kubernetes manifest issue detected by Harness CD`
 
-                Then create a pull request from `secops/ai-agentic-demo` to `secops/ai-agentic-demo-main`.
+                Then create a pull request from `fix/manifest-remediation` to `secops/ai-agentic-demo-main`.
 
                 Pull request title: `Fix Kubernetes manifest issue detected by Harness CD`
 
