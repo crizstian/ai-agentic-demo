@@ -265,16 +265,13 @@ agent:
 
                 ## Pull request
 
-                Create a branch `harness/manifest-remediation` based off `secops/ai-agentic-demo`.
-                If that branch already exists, append a short unique suffix.
-
-                The pull request MUST target `secops/ai-agentic-demo-main` (the deployment branch).
-                Do NOT target `main` or `secops/ai-agentic-demo`.
+                Do NOT create a new branch. Commit and push the fix directly to `secops/ai-agentic-demo`.
 
                 Repository: `crizstian/ai-agentic-demo`
 
-                Commit the manifest changes and the report file.
                 Commit message: `Fix Kubernetes manifest issue detected by Harness CD`
+
+                Then create a pull request from `secops/ai-agentic-demo` to `secops/ai-agentic-demo-main`.
 
                 Pull request title: `Fix Kubernetes manifest issue detected by Harness CD`
 
