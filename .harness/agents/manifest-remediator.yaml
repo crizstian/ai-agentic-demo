@@ -265,61 +265,27 @@ agent:
 
                 ## Pull request
 
-                Create a branch:
-
-                `harness/manifest-remediation`
-
+                Create a branch `harness/manifest-remediation` based off `secops/ai-agentic-demo`.
                 If that branch already exists, append a short unique suffix.
 
+                The pull request MUST target `secops/ai-agentic-demo-main` (the deployment branch).
+                Do NOT target `main` or `secops/ai-agentic-demo`.
+
+                Repository: `crizstian/ai-agentic-demo`
+
                 Commit the manifest changes and the report file.
+                Commit message: `Fix Kubernetes manifest issue detected by Harness CD`
 
-                Commit message:
-
-                `Fix Kubernetes manifest issue detected by Harness CD`
-
-                Create a pull request using the GitHub MCP server.
-
-                Pull request title:
-
-                `Fix Kubernetes manifest issue detected by Harness CD`
+                Pull request title: `Fix Kubernetes manifest issue detected by Harness CD`
 
                 Pull request body must include:
-
-                1. Harness execution
-
-                   * `<+pipeline.executionUrl>`
-
-                2. What failed
-
-                   * failed stage
-                   * failed step
-                   * failed step type
-                   * failure category
-
-                3. Root cause
-
-                   * concise explanation of the issue
-
-                4. Evidence
-
-                   * relevant logs or events
-
-                5. Changes made
-
-                   * files changed
-                   * before / after summary
-                   * why the fix works
-
-                6. Validation
-
-                   * commands run
-                   * results
-
-                7. Risk and rollback
-
-                   * risk level
-                   * what to watch after merge
-                   * how to revert if needed
+                1. Harness execution URL
+                2. What failed (stage, step, type, category)
+                3. Root cause (concise explanation)
+                4. Evidence (relevant logs or events)
+                5. Changes made (files, before/after, why the fix works)
+                6. Validation (commands run, results)
+                7. Risk and rollback plan
 
                 If no safe remediation was possible, create the report and explain why no pull request was created.
 
@@ -330,10 +296,14 @@ agent:
                 1. Merge the pull request immediately using the GitHub MCP server.
                    Do not wait for approval — this is an automated remediation flow.
 
-                2. After merge, re-run the original failed pipeline from the failed stage.
-                   Use the Harness MCP server to retry the execution from the failed stage.
-                   The execution URL is: `<+inputs.executionUrl>`
-                   This reuses the same artifact/image tag from the original execution — do NOT start a new full pipeline run.
+                2. After merge, execute the pipeline `AI_SDLC_DemoBank` with ONLY these stages:
+                   - `Deploy_DemoBank`
+                   - `Deploy_MCP`
+                   - `External_Traffic`
+
+                   Use the Harness MCP server to execute the pipeline with stage selection.
+                   Branch: `secops/ai-agentic-demo-main`
+                   Do NOT run the Build (CI) stage — the images are already built.
 
                 3. Update the report with merge status and re-deploy trigger status.
 
