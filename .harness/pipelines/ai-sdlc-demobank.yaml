@@ -446,7 +446,7 @@ pipeline:
                         - identifier: demobank_image
                           type: DockerRegistry
                           spec:
-                            tag: <+pipeline.sequenceId>
+                            tag: <+pipeline.variables.imageTag>
           environment:
             environmentRef: gke_latam
             deployToAll: false
@@ -468,7 +468,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
                               verifyAttestation:
                                 type: keyless
                                 spec:
@@ -489,7 +489,7 @@ pipeline:
                                 type: Docker
                                 spec:
                                   connector: DockerCristian
-                                  image_path: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image_path: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
                               verify_attestation:
                                 type: keyless
                                 spec:
@@ -507,7 +507,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
                               verifySign:
                                 type: keyless
                                 spec:
@@ -591,8 +591,8 @@ pipeline:
                           #!/bin/bash
                           json_payload="{\
                           \"services\": [\
-                          {\"service\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
-                          {\"service\": \"mcp-financial-data\", \"version\": \"<+pipeline.sequenceId>\"}], \
+                          {\"service\": \"harnessbank-demo\", \"version\": \"<+pipeline.variables.imageTag>\"}, \
+                          {\"service\": \"mcp-financial-data\", \"version\": \"<+pipeline.variables.imageTag>\"}], \
                           \"environments\": [\"gke-latam\"], \
                           \"changeId\": \"<+pipeline.executionId>\", \
                           \"status\": \"SUCCESS\", \
@@ -661,7 +661,7 @@ pipeline:
                         - identifier: mcp_financial_data_image
                           type: DockerRegistry
                           spec:
-                            tag: <+pipeline.sequenceId>
+                            tag: <+pipeline.variables.imageTag>
           environment:
             useFromStage:
               stage: Deploy_DemoBank
@@ -681,7 +681,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
                               verifyAttestation:
                                 type: keyless
                                 spec:
@@ -702,7 +702,7 @@ pipeline:
                                 type: Docker
                                 spec:
                                   connector: DockerCristian
-                                  image_path: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image_path: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
                               verify_attestation:
                                 type: keyless
                                 spec:
@@ -720,7 +720,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
                               verifySign:
                                 type: keyless
                                 spec:
@@ -938,5 +938,11 @@ pipeline:
         when:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+  variables:
+    - name: imageTag
+      type: String
+      description: "Docker image tag — defaults to pipeline run number, agent overrides with last successful build tag"
+      required: false
+      value: <+input>.default(<+pipeline.sequenceId>)
   fixedInputsOnRerun: true
   allowStageExecutions: true

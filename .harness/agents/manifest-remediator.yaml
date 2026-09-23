@@ -303,13 +303,18 @@ agent:
                 1. Merge the pull request immediately using the GitHub MCP server.
                    Do not wait for approval — this is an automated remediation flow.
 
-                2. After merge, execute the pipeline `AI_SDLC_DemoBank` with ONLY these stages:
+                2. Before executing the re-deploy, extract the `sequenceId` (run number) from the FAILED execution.
+                   Look for it in the execution details — it is the pipeline run number (e.g., 107, 108).
+                   This is the Docker image tag that was built successfully before the deploy failed.
+
+                3. After merge, execute the pipeline `AI_SDLC_DemoBank` with ONLY these stages:
                    - `Deploy_DemoBank`
                    - `Deploy_MCP`
                    - `External_Traffic`
 
                    Use the Harness MCP server to execute the pipeline with stage selection.
                    Branch: `secops/ai-agentic-demo-main`
+                   Pass the pipeline variable `imageTag` with the value from step 2 (the failed execution's sequenceId).
                    Do NOT run the Build (CI) stage — the images are already built.
 
                 3. Update the report with merge status and re-deploy trigger status.
