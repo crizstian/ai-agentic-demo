@@ -1,0 +1,47 @@
+pipeline:
+  name: Kubernetes Remediation
+  identifier: Kubernetes_Remediation
+  projectIdentifier: CristianRamirez
+  orgIdentifier: sandbox
+  tags: {}
+  stages:
+    - stage:
+        name: AI Agentic Remediation
+        identifier: AI_Agentic_Remediation
+        description: "Act 4.5: Manifest Remediator agent diagnoses failed K8s deploy and creates PR with fix"
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - stepGroup:
+                  name: Agents
+                  identifier: Agents
+                  steps:
+                    - step:
+                        type: Agent
+                        name: Manifest Remediator
+                        identifier: Manifest_Remediator
+                        spec:
+                          agentName: ca_manifest_remediation_v2
+                          agentSettings:
+                            llmConnector: account.harnessAnthropic
+                            mcpConnectors:
+                              - mcp_harness_cristian
+                              - mcp_github_cristian
+                            modelName: claude-sonnet-4-6
+                            executionUrl: <+input>
+                  stepGroupInfra:
+                    type: KubernetesDirect
+                    spec:
+                      connectorRef: org.se_sandbox_k8s
+                      namespace: default
+                      containerSecurityContext:
+                        privileged: true
+                      harnessImageConnectorRef: account.harnessImage
+        tags: {}
+        variables:
+          - name: HARNESS_TOKEN
+            type: String
+            description: ""
+            required: false
+            value: <+secrets.getValue("CristianGithub")>

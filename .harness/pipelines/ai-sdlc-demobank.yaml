@@ -617,6 +617,21 @@ pipeline:
                   type: K8sRollingRollback
                   timeout: 10m
                   spec: {}
+              - step:
+                  type: ShellScript
+                  name: Trigger AI Remediation
+                  identifier: Trigger_AI_Remediation
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          curl -X POST -H 'content-type: application/json' \
+                            --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
+                            -d '{"executionUrl": "<+pipeline.executionUrl>"}'
+                  timeout: 1m
         tags: {}
         failureStrategies:
           - onFailure:

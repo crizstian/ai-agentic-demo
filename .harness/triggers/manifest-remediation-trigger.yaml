@@ -1,0 +1,36 @@
+trigger:
+  name: manifest_remediation_trigger
+  identifier: manifest_remediation_trigger
+  enabled: true
+  stagesToExecute: []
+  description: "Triggered by AI SDLC DemoBank pipeline rollback when canary deploy fails"
+  tags: {}
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  pipelineIdentifier: Kubernetes_Remediation
+  source:
+    type: Webhook
+    spec:
+      type: Custom
+      spec:
+        payloadConditions: []
+        headerConditions: []
+  inputYaml: |
+    pipeline:
+      identifier: Kubernetes_Remediation
+      stages:
+        - stage:
+            identifier: AI_Agentic_Remediation
+            type: Custom
+            spec:
+              execution:
+                steps:
+                  - stepGroup:
+                      identifier: Agents
+                      steps:
+                        - step:
+                            identifier: Manifest_Remediator
+                            type: Agent
+                            spec:
+                              agentSettings:
+                                executionUrl: <+trigger.payload.executionUrl>

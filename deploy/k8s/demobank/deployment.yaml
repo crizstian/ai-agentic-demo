@@ -37,6 +37,18 @@ spec:
           image: {{ .Values.image }}
           imagePullPolicy: Always
 
+          env:
+            - name: OPENAI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: OPENAI_MODEL
+            - name: MCP_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: MCP_SERVER_URL
+
           ports:
             - containerPort: {{ .Values.containerPort }}
 
