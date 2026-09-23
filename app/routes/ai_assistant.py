@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 import httpx
 from flask import Blueprint, jsonify, request
@@ -9,7 +10,11 @@ from splitio import get_factory
 ai_bp = Blueprint("ai", __name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:5001")
+_raw_mcp_url = os.getenv("MCP_SERVER_URL", "http://localhost:5001")
+_parsed = urlparse(_raw_mcp_url)
+if _parsed.scheme not in ("http", "https"):
+    raise ValueError(f"MCP_SERVER_URL must use http or https scheme, got: {_parsed.scheme}")
+MCP_SERVER_URL = _raw_mcp_url
 AI_MODEL = os.getenv("AI_MODEL", "gpt-4")
 
 SYSTEM_PROMPT = (
@@ -21,7 +26,8 @@ SYSTEM_PROMPT = (
 )
 
 # --- Split.io singleton ---
-_split_factory = get_factory("v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
+SPLITIO_SERVER_KEY = os.getenv("SPLITIO_SERVER_KEY", "")
+_split_factory = get_factory(SPLITIO_SERVER_KEY)
 _split_factory.block_until_ready(5)
 _split_client = _split_factory.client()
 

@@ -1,9 +1,10 @@
 // DemoBank AI SDLC — client-side JS
 
 // --- Split.io Feature Flag: ai_chat_enabled ---
+var splitioKey = document.querySelector('meta[name="splitio-key"]');
 var splitFactory = splitio({
   core: {
-    authorizationKey: "cl0bl351743733kglfasq85pr2kq8ul9rmqv",
+    authorizationKey: splitioKey ? splitioKey.getAttribute("content") : "",
     key: "demobank-web",
   },
 });
@@ -104,18 +105,18 @@ document.addEventListener("DOMContentLoaded", function () {
       .then((res) => res.json())
       .then((result) => {
         const resultDiv = document.getElementById("transfer-result");
+        resultDiv.textContent = "";
+        const alertDiv = document.createElement("div");
         if (result.success) {
-          // DEMO UX BUG: shows success even for invalid (negative/zero) amounts
-          resultDiv.innerHTML =
-            '<div class="alert alert-success" style="font-size:18px;font-weight:800;padding:24px;">✅ Transfer completed successfully!<br>Amount transferred: <strong>$' +
-            result.amount +
-            '</strong><br><span style="font-size:12px;color:#276749;">Transaction ID: ' +
-            result.transferId +
-            "</span></div>";
+          alertDiv.className = "alert alert-success";
+          alertDiv.style.cssText = "font-size:18px;font-weight:800;padding:24px;";
+          alertDiv.textContent = "Transfer completed successfully! Amount transferred: $" +
+            result.amount + " — Transaction ID: " + result.transferId;
         } else {
-          resultDiv.innerHTML =
-            '<div class="alert alert-error">Error: ' + result.error + "</div>";
+          alertDiv.className = "alert alert-error";
+          alertDiv.textContent = "Error: " + (result.error || "Unknown error");
         }
+        resultDiv.appendChild(alertDiv);
       })
       .catch(() => {
         document.getElementById("transfer-result").innerHTML =

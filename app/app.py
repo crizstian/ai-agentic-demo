@@ -54,6 +54,7 @@ def create_app():
             accounts=accounts,
             transactions=transactions,
             app_name=APP_NAME,
+            splitio_client_key=os.getenv("SPLITIO_CLIENT_KEY", ""),
         )
 
     # Transfer page
