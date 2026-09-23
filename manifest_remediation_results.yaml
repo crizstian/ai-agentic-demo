@@ -1,0 +1,71 @@
+execution_url: "https://app.harness.io/ng/#/account/EeRjnXTnS4GrLG5VNNJZUw/cd/orgs/sandbox/projects/CristianRamirez/pipelines/AI_SDLC_DemoBank/executions/vL000KCtQZSovi0cXEqE0w/pipeline"
+analysis:
+  failed_stage: "Deploy DemoBank"
+  failed_step: "Wait for Steady State (K8s Canary)"
+  failed_step_type: "K8sCanaryDeploy"
+  failure_type: "Runtime and rollout — deployment exceeded progress deadline"
+  root_cause: >-
+    The ConfigMap 'harnessbank-demo-end2end-config' defines key 'AI_MODEL' but
+    the Deployment's env block references 'OPENAI_MODEL' via configMapKeyRef.
+    Kubernetes cannot create the container (CreateContainerConfigError) because
+    the referenced key does not exist in the ConfigMap. The canary pods never
+    become Ready, and with progressDeadlineSeconds: 20 the deployment times out
+    after 20 seconds.
+  confidence: "high"
+  evidence:
+    - "Steady state check failed with error: deployment harnessbank-demo-end2end-canary exceeded its progress deadline"
+    - "KubernetesCliTaskRuntimeException commandType=STEADY_STATE_CHECK"
+    - "Commit 711a614: BUG comment in configmap.yaml — key is AI_MODEL, deployment references OPENAI_MODEL"
+    - "deployment.yaml env[0]: configMapKeyRef name=harnessbank-demo-end2end-config key=OPENAI_MODEL"
+    - "configmap.yaml data: AI_MODEL=gpt-4 (wrong key name)"
+    - "progressDeadlineSeconds: 20 (fast-fail, canary never reaches Ready)"
+
+correlated_files:
+  - file: "deploy/k8s/demobank/configmap.yaml"
+    reason: "Defines the ConfigMap consumed by the Deployment via configMapKeyRef; contains the wrong key name AI_MODEL instead of OPENAI_MODEL"
+  - file: "deploy/k8s/demobank/deployment.yaml"
+    reason: "References OPENAI_MODEL from the ConfigMap in its env block; this is the consuming side of the mismatch"
+
+changes_applied:
+  - file: "deploy/k8s/demobank/configmap.yaml"
+    change: "Rename ConfigMap key AI_MODEL → OPENAI_MODEL"
+    before: |
+      data:
+        APP_NAME: "DemoBank AI SDLC"
+        LOG_LEVEL: "info"
+        # BUG: key is AI_MODEL — deployment references OPENAI_MODEL (Act 4.5 demo)
+        # This causes CreateContainerConfigError → Manifest Remediator fixes it
+        AI_MODEL: "gpt-4"
+        MCP_SERVER_URL: "http://mcp-financial-data:5001"
+    after: |
+      data:
+        APP_NAME: "DemoBank AI SDLC"
+        LOG_LEVEL: "info"
+        OPENAI_MODEL: "gpt-4"
+        MCP_SERVER_URL: "http://mcp-financial-data:5001"
+    rationale: >-
+      The Deployment env block uses configMapKeyRef with key: OPENAI_MODEL.
+      Renaming the ConfigMap key from AI_MODEL to OPENAI_MODEL makes the key
+      reference resolve, eliminating CreateContainerConfigError and allowing
+      the canary pods to start and reach Ready state.
+
+validation:
+  commands_run:
+    - "git diff secops/ai-agentic-demo-main -- deploy/k8s/demobank/configmap.yaml (verified single key rename)"
+    - "YAML structure validated (no apiVersion/kind/metadata changes)"
+    - "deployment.yaml env block cross-checked: key=OPENAI_MODEL now matches configmap.yaml key OPENAI_MODEL"
+  results:
+    - "Change is minimal: one key rename in ConfigMap data block, no structural changes"
+    - "Deployment env reference key=OPENAI_MODEL now matches ConfigMap key OPENAI_MODEL — mismatch resolved"
+    - "No other files reference AI_MODEL in deploy/k8s/demobank/"
+
+pull_request:
+  created: true
+  url: ""
+  branch: "harness/manifest-remediation-20260923-2"
+
+next_steps:
+  - "Merge pull request to secops/ai-agentic-demo-main"
+  - "Re-run pipeline AI_SDLC_DemoBank stages: Deploy_DemoBank, Deploy_MCP, External_Traffic"
+  - "Verify canary pods reach Running/Ready state in namespace harnessbank-demo-end2end"
+  - "Confirm env var OPENAI_MODEL is populated correctly in the running pod"
