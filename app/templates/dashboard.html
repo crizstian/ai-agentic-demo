@@ -100,6 +100,141 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
+  <!-- AI Chat Widget — gated by Split flag "ai_chat_enabled" -->
+  <div id="ai-chat-widget" style="display:none;">
+    <button id="ai-chat-toggle" class="ai-chat-fab">💬</button>
+    <div id="ai-chat-panel" class="ai-chat-panel" style="display:none;">
+      <div class="ai-chat-header">
+        <span>DemoBank AI Assistant</span>
+        <button id="ai-chat-close" class="ai-chat-close">&times;</button>
+      </div>
+      <div id="ai-chat-messages" class="ai-chat-messages">
+        <div class="ai-msg ai-msg-bot">Hi! I'm your DemoBank AI assistant. How can I help you today?</div>
+      </div>
+      <div class="ai-chat-input-row">
+        <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask about your accounts..." />
+        <button id="ai-chat-send" class="ai-chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .ai-chat-fab {
+      position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px;
+      border-radius: 50%; background: #3182ce; color: white; border: none;
+      font-size: 24px; cursor: pointer; box-shadow: 0 4px 14px rgba(49,130,206,0.4);
+      z-index: 1000; transition: background 0.2s;
+    }
+    .ai-chat-fab:hover { background: #2c5282; }
+    .ai-chat-panel {
+      position: fixed; bottom: 92px; right: 24px; width: 370px; height: 480px;
+      background: white; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      display: flex; flex-direction: column; z-index: 1000; overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .ai-chat-header {
+      background: #1a2332; color: white; padding: 14px 18px; font-weight: 600;
+      font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .ai-chat-close {
+      background: none; border: none; color: white; font-size: 20px; cursor: pointer;
+      line-height: 1;
+    }
+    .ai-chat-messages {
+      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .ai-msg {
+      padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.45;
+      max-width: 85%; word-wrap: break-word;
+    }
+    .ai-msg-bot { background: #f0f4f8; color: #2d3748; align-self: flex-start; }
+    .ai-msg-user { background: #3182ce; color: white; align-self: flex-end; }
+    .ai-chat-input-row {
+      display: flex; border-top: 1px solid #e2e8f0; padding: 10px;
+    }
+    .ai-chat-input {
+      flex: 1; border: 1px solid #cbd5e0; border-radius: 8px; padding: 8px 12px;
+      font-size: 13px; outline: none;
+    }
+    .ai-chat-input:focus { border-color: #63b3ed; }
+    .ai-chat-send {
+      margin-left: 8px; background: #3182ce; color: white; border: none;
+      border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer;
+    }
+    .ai-chat-send:hover { background: #2c5282; }
+  </style>
+
+  <!-- Split JS SDK for feature flag -->
+  <script src="https://cdn.split.io/sdk/split-browser-10.28.0.min.js"></script>
+  <script>
+    (function() {
+      var factory = splitio({
+        core: {
+          authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+          key: 'demobank-web'
+        }
+      });
+      var splitClient = factory.client();
+
+      splitClient.on(splitClient.Event.SDK_READY, function() {
+        var treatment = splitClient.getTreatment('ai_chat_enabled');
+        if (treatment === 'on') {
+          document.getElementById('ai-chat-widget').style.display = 'block';
+        }
+      });
+
+      // Chat toggle
+      document.getElementById('ai-chat-toggle').addEventListener('click', function() {
+        var panel = document.getElementById('ai-chat-panel');
+        panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+      });
+      document.getElementById('ai-chat-close').addEventListener('click', function() {
+        document.getElementById('ai-chat-panel').style.display = 'none';
+      });
+
+      // Send message
+      function sendMessage() {
+        var input = document.getElementById('ai-chat-input');
+        var msg = input.value.trim();
+        if (!msg) return;
+        input.value = '';
+
+        var messages = document.getElementById('ai-chat-messages');
+        var userBubble = document.createElement('div');
+        userBubble.className = 'ai-msg ai-msg-user';
+        userBubble.textContent = msg;
+        messages.appendChild(userBubble);
+        messages.scrollTop = messages.scrollHeight;
+
+        fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var botBubble = document.createElement('div');
+          botBubble.className = 'ai-msg ai-msg-bot';
+          botBubble.textContent = data.reply || data.error || 'No response';
+          messages.appendChild(botBubble);
+          messages.scrollTop = messages.scrollHeight;
+        })
+        .catch(function() {
+          var errBubble = document.createElement('div');
+          errBubble.className = 'ai-msg ai-msg-bot';
+          errBubble.textContent = 'Connection error. Please try again.';
+          messages.appendChild(errBubble);
+        });
+      }
+
+      document.getElementById('ai-chat-send').addEventListener('click', sendMessage);
+      document.getElementById('ai-chat-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendMessage();
+      });
+    })();
+  </script>
+
   <script src="/app.js"></script>
 </body>
 </html>
