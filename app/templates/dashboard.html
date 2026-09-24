@@ -100,26 +100,6 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
-  <!-- AI Chat Widget -->
-  <button id="ai-chat-btn" style="display:none" onclick="toggleChatPanel()">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-  </button>
-
-  <div id="ai-chat-panel" style="display:none">
-    <div class="chat-header">
-      <span class="chat-title">AI Banking Assistant</span>
-      <button class="chat-close" onclick="toggleChatPanel()">&times;</button>
-    </div>
-    <div id="chat-messages" class="chat-messages"></div>
-    <div class="chat-input-area">
-      <input type="text" id="chat-input" placeholder="Ask about your accounts..." onkeydown="if(event.key==='Enter')sendChatMessage()">
-      <button id="chat-send-btn" onclick="sendChatMessage()">Send</button>
-    </div>
-  </div>
-
-  <!-- Split.io JS SDK -->
-  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
-
   <script src="/app.js"></script>
 </body>
 </html>
