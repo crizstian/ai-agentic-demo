@@ -109,7 +109,7 @@ pipeline:
                                   mcpConnectors:
                                     - mcp_harness_cristian
                                     - mcp_github_cristian
-                                  modelName: claude-sonnet-4-5-20250929
+                                  modelName: claude-sonnet-4-6
                               when:
                                 stageStatus: Success
                               failureStrategies:
