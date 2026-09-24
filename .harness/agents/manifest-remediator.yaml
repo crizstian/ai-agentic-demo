@@ -8,7 +8,7 @@ agent:
           id: agent
           run:
             container:
-              image: pkg.harness.io/vrvdt5ius7uwygso8s0bia/harness-agents/harness-ai-agent:latest
+              image: harness/harness-ai-agent:0.1.77
               connector: account.harnessImage
             env:
               PLUGIN_MAX_TURNS: 30
