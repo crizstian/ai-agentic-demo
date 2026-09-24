@@ -8,7 +8,5 @@ metadata:
 data:
   APP_NAME: "DemoBank AI SDLC"
   LOG_LEVEL: "info"
-  # BUG: key is AI_MODEL — deployment references OPENAI_MODEL (Act 4.5 demo)
-  # This causes CreateContainerConfigError → Manifest Remediator fixes it
-  AI_MODEL: "gpt-4"
+  OPENAI_MODEL: "gpt-4"
   MCP_SERVER_URL: "http://mcp-financial-data:5001"
