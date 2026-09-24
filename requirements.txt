@@ -1,7 +1,7 @@
-flask==3.1.0
-flask-cors==5.0.0
-pyjwt==2.10.1
+flask>=3.1.1
+flask-cors>=5.0.1
+pyjwt>=2.10.1
 openai
-requests==2.28.0
+requests>=2.32.3
 httpx
 splitio_client
