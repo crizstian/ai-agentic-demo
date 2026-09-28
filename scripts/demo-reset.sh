@@ -44,10 +44,11 @@ set -euo pipefail
 #     → Act 7: Block mode + AI Security
 #
 # Usage:
-#   ./scripts/demo-reset.sh              # Reset app code only (dry view)
-#   ./scripts/demo-reset.sh --db         # Also reset database
-#   ./scripts/demo-reset.sh --commit     # Reset + auto-commit
-#   ./scripts/demo-reset.sh --db --commit # Full reset + commit
+#   ./scripts/demo-reset.sh                    # Reset app code only (dry view)
+#   ./scripts/demo-reset.sh --db               # Also reset database
+#   ./scripts/demo-reset.sh --commit           # Reset + commit + sync target branch
+#   ./scripts/demo-reset.sh --commit --push    # Reset + commit + sync + push both branches
+#   ./scripts/demo-reset.sh --db --commit --push  # Full reset + commit + sync + push
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,18 +57,23 @@ DB_PATH="${DB_PATH:-$PROJECT_DIR/demobank.db}"
 
 # Source branch for clean app files
 SOURCE_BRANCH="main"
+# Target branch that receives PRs — synced to same commit to avoid conflicts
+TARGET_BRANCH="secops/ai-agentic-demo-main"
 
 RESET_DB=false
 DO_COMMIT=false
+DO_PUSH=false
 
 for arg in "$@"; do
     case "$arg" in
         --db)     RESET_DB=true ;;
         --commit) DO_COMMIT=true ;;
+        --push)   DO_PUSH=true ;;
         --help|-h)
-            echo "Usage: $0 [--db] [--commit]"
+            echo "Usage: $0 [--db] [--commit] [--push]"
             echo "  --db      Also reset the database (delete + re-seed)"
-            echo "  --commit  Commit the reset as a new commit"
+            echo "  --commit  Commit the reset + sync target branch ($TARGET_BRANCH)"
+            echo "  --push    Push both branches to origin after commit"
             exit 0
             ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
@@ -374,7 +380,49 @@ EOF
     )"
 
     print_ok "Committed reset to STATE 0"
+
+    # -----------------------------------------------------------------
+    # 6b. Sync target branch to same commit (avoids merge conflicts)
+    # -----------------------------------------------------------------
     echo ""
+    echo -e "${CYAN}--- Syncing target branch: $TARGET_BRANCH ---${NC}"
+
+    RESET_COMMIT=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+
+    # Stash untracked files before branch switch
+    git -C "$PROJECT_DIR" stash -u 2>/dev/null || true
+
+    # Fetch latest target branch
+    git -C "$PROJECT_DIR" fetch origin "$TARGET_BRANCH" 2>/dev/null || true
+
+    if git -C "$PROJECT_DIR" rev-parse --verify "$TARGET_BRANCH" >/dev/null 2>&1; then
+        git -C "$PROJECT_DIR" checkout "$TARGET_BRANCH"
+        git -C "$PROJECT_DIR" reset --hard "$RESET_COMMIT"
+        print_ok "Target branch reset to commit ${RESET_COMMIT:0:7}"
+    else
+        git -C "$PROJECT_DIR" checkout -b "$TARGET_BRANCH" "$RESET_COMMIT"
+        print_ok "Created target branch at commit ${RESET_COMMIT:0:7}"
+    fi
+
+    # Switch back to working branch
+    git -C "$PROJECT_DIR" checkout "$CURRENT_BRANCH"
+    git -C "$PROJECT_DIR" stash pop 2>/dev/null || true
+    print_ok "Back on $CURRENT_BRANCH"
+
+    # Both branches now point to the same commit — PRs will be clean diffs
+    echo ""
+
+    # -----------------------------------------------------------------
+    # 6c. Push both branches (optional)
+    # -----------------------------------------------------------------
+    if [[ "$DO_PUSH" == true ]]; then
+        echo -e "${CYAN}--- Pushing both branches ---${NC}"
+        git -C "$PROJECT_DIR" push origin "$CURRENT_BRANCH" --force-with-lease
+        print_ok "Pushed $CURRENT_BRANCH"
+        git -C "$PROJECT_DIR" push origin "$TARGET_BRANCH" --force-with-lease
+        print_ok "Pushed $TARGET_BRANCH"
+        echo ""
+    fi
 fi
 
 # =========================================================================
@@ -417,10 +465,13 @@ echo -e "    scripts/    attack-chain, traceable-setup, demo-reset"
 echo ""
 echo -e "  ${CYAN}Next steps:${NC}"
 if [[ "$DO_COMMIT" == false ]]; then
-    echo -e "    git diff --stat          # review changes"
-    echo -e "    $0 --commit   # commit when ready"
+    echo -e "    git diff --stat                    # review changes"
+    echo -e "    $0 --commit            # commit + sync target"
+    echo -e "    $0 --commit --push     # commit + sync + push"
+elif [[ "$DO_PUSH" == false ]]; then
+    echo -e "    git push origin $CURRENT_BRANCH --force-with-lease"
+    echo -e "    git push origin $TARGET_BRANCH --force-with-lease"
 fi
-echo -e "    git push origin $CURRENT_BRANCH  # push to remote"
 echo ""
 
 echo -e "  ${CYAN}Demo lifecycle:${NC}"

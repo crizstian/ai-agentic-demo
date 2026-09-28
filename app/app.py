@@ -6,13 +6,13 @@ from flask_cors import CORS
 from .db import get_db
 from .routes.accounts import accounts_bp
 from .routes.admin import admin_bp
+from .routes.ai_assistant import ai_bp
 from .routes.fx import fx_bp
 from .routes.statements import statements_bp
-from .routes.ai_assistant import ai_bp
 from .routes.transfers import transfers_bp
 
 APP_NAME = "DemoBank AI SDLC"
-
+DEMO = "1.0.0"
 
 def create_app():
     app = Flask(

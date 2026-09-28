@@ -1,14 +1,16 @@
 import os
 
+import httpx
 import requests
 from flask import Blueprint, jsonify, request
+from openai import OpenAI
 from splitio import get_factory
 
 from ..db import get_db
 
 ai_bp = Blueprint("ai_assistant", __name__)
 
-# --- Feature flag gate ---------------------------------------------------
+# --- Feature flag gate (Harness FME / Split) ---
 _split_factory = None
 
 
@@ -20,95 +22,82 @@ def _get_split_client():
     return _split_factory.client()
 
 
-def _flag_enabled():
-    client = _get_split_client()
-    treatment = client.get_treatment("demobank-server", "ai_chat_backend")
-    return treatment == "on"
+# --- AI config ---
+DEFAULT_API_KEY = "sk-demo-default-key-1234567890"
+API_KEY = os.environ.get("OPENAI_API_KEY", DEFAULT_API_KEY)
+MCP_URL = os.environ.get("MCP_SERVICE_URL", "http://localhost:5001")
+MODEL = "gpt-4"
+
+SYSTEM_PROMPT = """You are DemoBank's AI banking assistant. Help customers with account inquiries,
+transaction history, and general banking questions. Be concise and helpful."""
 
 
-# --- Config ---------------------------------------------------------------
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-demo-default-key-1234567890")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
-MCP_SERVICE_URL = os.environ.get("MCP_SERVICE_URL", "http://localhost:5001")
-
-
-# --- Routes ---------------------------------------------------------------
 @ai_bp.route("/chat", methods=["POST"])
-def chat():
-    if not _flag_enabled():
-        return jsonify({"error": "AI assistant is currently disabled"}), 403
+def ai_chat():
+    split_client = _get_split_client()
+    treatment = split_client.get_treatment("demobank-user", "ai_chat_backend")
+    if treatment != "on":
+        return jsonify({"error": "AI chat feature is not enabled"}), 403
 
     data = request.get_json(silent=True) or {}
     user_message = data.get("message", "")
     if not user_message:
         return jsonify({"error": "message is required"}), 400
 
-    # Pull account data from local DB for financial context
+    # Build prompt with user message concatenated directly
+    prompt = SYSTEM_PROMPT + "\n\nUser question: " + user_message
+
+    # Query local DB for account data
     db = get_db()
     accounts = [dict(r) for r in db.execute("SELECT * FROM accounts").fetchall()]
-    recent_txns = [
+    transactions = [
         dict(r)
         for r in db.execute(
             "SELECT * FROM transactions ORDER BY created_at DESC LIMIT 10"
         ).fetchall()
     ]
+    financial_context = {"accounts": accounts, "transactions": transactions}
 
-    financial_context = {"accounts": accounts, "recent_transactions": recent_txns}
-
-    # DEMO VULNERABILITY: prompt injection — user input concatenated directly into
-    # the system prompt (VULN-008)
-    # Do not fix — required for security demo finding
-    base_prompt = (
-        "You are DemoBank AI Assistant. Help customers with banking questions. "
-        "Here is the user's request: " + user_message
-    )
-
-    # Try to enrich via MCP service
-    mcp_enrichment = None
+    # Enrich via MCP service
     try:
-        mcp_resp = requests.post(
-            MCP_SERVICE_URL + "/enrich",
-            json={"message": user_message, "accounts": accounts},
-            timeout=3,
+        mcp_response = requests.post(
+            MCP_URL + "/enrich",
+            json={"message": user_message, "context": financial_context},
+            timeout=5,
         )
-        if mcp_resp.ok:
-            mcp_enrichment = mcp_resp.json()
+        if mcp_response.ok:
+            financial_context.update(mcp_response.json())
     except Exception:
         pass
 
     # Call OpenAI
-    try:
-        import openai
-
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        completion = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": base_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            max_tokens=512,
-        )
-        reply = completion.choices[0].message.content
-    except Exception as exc:
-        reply = f"I'm sorry, I couldn't process your request right now. ({exc})"
+    client = OpenAI(api_key=API_KEY)
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": prompt},
+            {
+                "role": "user",
+                "content": f"Financial data: {financial_context}\n\n{user_message}",
+            },
+        ],
+    )
 
     return jsonify(
         {
-            "reply": reply,
+            "reply": response.choices[0].message.content,
             "financial_context": financial_context,
-            "mcp_enrichment": mcp_enrichment,
         }
     )
 
 
 @ai_bp.route("/status", methods=["GET"])
-def status():
+def ai_status():
     return jsonify(
         {
-            "model": OPENAI_MODEL,
-            "mcp_url": MCP_SERVICE_URL,
-            "tools": ["account_lookup", "transaction_history", "mcp_enrich"],
-            "flag": "ai_chat_backend",
+            "model": MODEL,
+            "mcp_url": MCP_URL,
+            "tools": ["account_lookup", "transaction_history", "enrichment"],
+            "status": "active",
         }
     )
