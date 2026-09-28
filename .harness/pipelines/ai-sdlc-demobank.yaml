@@ -724,6 +724,9 @@ pipeline:
                             --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
                             -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>"}'
                   timeout: 1m
+                  when:
+                    stageStatus: Success
+                    condition: "!(<+codebase.commitMessage>.contains(\"manifest\"))"
         tags: {}
         failureStrategies:
           - onFailure:
