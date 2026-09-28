@@ -1,8 +1,17 @@
 import os
+import sys
+from unittest.mock import MagicMock
 
 # Use an in-memory DB for the whole test session, mirroring the Node tests'
 # process.env.DB_PATH = ":memory:". Set before any app import so config picks it up.
 os.environ["DB_PATH"] = ":memory:"
+os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake")
+
+# Mock splitio before app import — the SDK blocks on network at module level.
+_factory_mock = MagicMock()
+_splitio_mock = MagicMock()
+_splitio_mock.get_factory.return_value = _factory_mock
+sys.modules.setdefault("splitio", _splitio_mock)
 
 import pytest
 
