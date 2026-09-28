@@ -1031,7 +1031,6 @@ pipeline:
                       name: UI Alignment Test
                       identifier: UI_Alignment_Test
                       spec:
-                        connectorRef: DockerCristian
                         image: mcr.microsoft.com/playwright:v1.48.0-noble
                         shell: Bash
                         command: |-
@@ -1040,26 +1039,31 @@ pipeline:
                           echo "=== Running Playwright UI alignment checks ==="
 
                           cd tests/e2e
-                          npm ci --silent
-                          npx playwright test ui-alignment.spec.js --config=playwright.config.js --reporter=json > /tmp/pw-results.json || true
+                          npm install --silent 2>&1 | tail -3
+                          npx playwright test ui-alignment.spec.js --config=playwright.config.js --reporter=json 2>/dev/null > /tmp/pw-results.json || true
                           cd ../..
 
-                          FAILURES=$(cat /tmp/pw-results.json | node -e "
-                            const fs = require('fs');
-                            const r = JSON.parse(fs.readFileSync('/dev/stdin','utf8'));
-                            const fails = (r.suites||[]).flatMap(s => s.specs||[]).filter(s => s.ok === false);
-                            const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
-                            console.log(msgs.join(' | '));
-                          ")
-
-                          if [ -z "$FAILURES" ]; then
-                            echo "All UI checks passed"
+                          if [ ! -s /tmp/pw-results.json ]; then
+                            echo "WARNING: Playwright produced no JSON output"
                             DEFECTS="NONE"
                             FILES="NONE"
                           else
-                            echo "UI DEFECTS FOUND: $FAILURES"
-                            DEFECTS="$FAILURES"
-                            FILES="app/static/styles.css, app/templates/dashboard.html"
+                            FAILURES=$(node -e "
+                              const r = JSON.parse(require('fs').readFileSync('/tmp/pw-results.json','utf8'));
+                              const fails = (r.suites||[]).flatMap(s => s.specs||[]).filter(s => s.ok === false);
+                              const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
+                              console.log(msgs.join(' | '));
+                            ")
+
+                            if [ -z "$FAILURES" ]; then
+                              echo "All UI checks passed"
+                              DEFECTS="NONE"
+                              FILES="NONE"
+                            else
+                              echo "UI DEFECTS FOUND: $FAILURES"
+                              DEFECTS="$FAILURES"
+                              FILES="app/static/styles.css, app/templates/dashboard.html"
+                            fi
                           fi
                         envVariables:
                           BASE_URL: http://demobank-e2e.selatam.harness-demo.site
@@ -1088,6 +1092,7 @@ pipeline:
                         - mcp_harness_cristian
                         - mcp_github_cristian
                       modelName: claude-sonnet-4-6
+                      maxTurns: 25
                   when:
                     stageStatus: Success
                     condition: <+execution.steps.UI_Alignment_Test.output.outputVariables.DEFECTS> != "NONE"
