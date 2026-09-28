@@ -479,13 +479,28 @@ pipeline:
                       type: Inline
                       spec:
                         script: |-
-                          JIRA_ID=$(echo "<+codebase.commitMessage>" | grep -oP '[A-Z]+-\d+' | head -1)
-                          if [ -z "$JIRA_ID" ]; then
-                            JIRA_ID="NONE"
-                            echo "No Jira ID found in commit message"
+                          if [ -n "$CI_JIRA_ID" ] && [ "$CI_JIRA_ID" != "NONE" ] && [ "$CI_JIRA_ID" != "null" ]; then
+                            JIRA_ID="$CI_JIRA_ID"
+                            echo "Jira ID from CI stage: $JIRA_ID"
+                          elif [ -n "$TRIGGER_COMMIT_MSG" ] && [ "$TRIGGER_COMMIT_MSG" != "null" ]; then
+                            JIRA_ID=$(echo "$TRIGGER_COMMIT_MSG" | grep -oP '[A-Z]+-\d+' | head -1)
+                            if [ -z "$JIRA_ID" ]; then
+                              JIRA_ID="NONE"
+                              echo "No Jira ID in trigger commit message"
+                            else
+                              echo "Jira ID from trigger payload: $JIRA_ID"
+                            fi
                           else
-                            echo "Jira ticket: $JIRA_ID"
+                            JIRA_ID="NONE"
+                            echo "No commit message source available"
                           fi
+                    environmentVariables:
+                      - name: CI_JIRA_ID
+                        type: String
+                        value: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>.default("")
+                      - name: TRIGGER_COMMIT_MSG
+                        type: String
+                        value: <+trigger.payload.head_commit.message>.default("")
                     outputVariables:
                       - name: JIRA_ID
                         type: String
