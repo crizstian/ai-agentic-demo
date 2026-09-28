@@ -469,43 +469,6 @@ pipeline:
               - identifier: latam_nodepool
           execution:
             steps:
-              - step:
-                  type: ShellScript
-                  name: Extract Jira ID
-                  identifier: Extract_Jira_ID
-                  spec:
-                    shell: Bash
-                    source:
-                      type: Inline
-                      spec:
-                        script: |-
-                          if [ -n "$CI_JIRA_ID" ] && [ "$CI_JIRA_ID" != "NONE" ] && [ "$CI_JIRA_ID" != "null" ]; then
-                            JIRA_ID="$CI_JIRA_ID"
-                            echo "Jira ID from CI stage: $JIRA_ID"
-                          elif [ -n "$TRIGGER_COMMIT_MSG" ] && [ "$TRIGGER_COMMIT_MSG" != "null" ]; then
-                            JIRA_ID=$(echo "$TRIGGER_COMMIT_MSG" | grep -oP '[A-Z]+-\d+' | head -1)
-                            if [ -z "$JIRA_ID" ]; then
-                              JIRA_ID="NONE"
-                              echo "No Jira ID in trigger commit message"
-                            else
-                              echo "Jira ID from trigger payload: $JIRA_ID"
-                            fi
-                          else
-                            JIRA_ID="NONE"
-                            echo "No commit message source available"
-                          fi
-                    environmentVariables:
-                      - name: CI_JIRA_ID
-                        type: String
-                        value: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>.default("")
-                      - name: TRIGGER_COMMIT_MSG
-                        type: String
-                        value: <+trigger.payload.head_commit.message>.default("")
-                    outputVariables:
-                      - name: JIRA_ID
-                        type: String
-                        value: JIRA_ID
-                  timeout: 1m
               - parallel:
                   - stepGroup:
                       name: Supply Chain
@@ -579,7 +542,7 @@ pipeline:
                       identifier: Jira_Deploying
                       spec:
                         connectorRef: account.Harness_JIRA
-                        issueKey: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                        issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
                         transitionTo:
                           status: In Progress
                         fields:
@@ -588,7 +551,7 @@ pipeline:
                       timeout: 1m
                       when:
                         stageStatus: Success
-                        condition: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID> != "NONE"
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
               - stepGroup:
                   name: Canary Deployment
                   identifier: canaryDeployment
@@ -642,7 +605,7 @@ pipeline:
                   identifier: Jira_CAB_Approval
                   spec:
                     connectorRef: account.Harness_JIRA
-                    issueKey: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                    issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
                     approvalCriteria:
                       type: KeyValues
                       spec:
@@ -662,7 +625,7 @@ pipeline:
                   timeout: 15m
                   when:
                     stageStatus: Success
-                    condition: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID> != "NONE"
+                    condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
               - stepGroup:
                   name: Primary Deployment
                   identifier: primaryDeployment
@@ -681,7 +644,7 @@ pipeline:
                       identifier: Jira_Deployed
                       spec:
                         connectorRef: account.Harness_JIRA
-                        issueKey: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                        issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
                         transitionTo:
                           status: Done
                         fields:
@@ -690,7 +653,7 @@ pipeline:
                       timeout: 1m
                       when:
                         stageStatus: Success
-                        condition: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID> != "NONE"
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
                   - step:
                       type: ShellScript
                       name: AI SRE Deploy Notification
@@ -736,7 +699,7 @@ pipeline:
                   identifier: Jira_Failed
                   spec:
                     connectorRef: account.Harness_JIRA
-                    issueKey: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                    issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
                     transitionTo:
                       status: Rejected
                     fields:
@@ -745,7 +708,7 @@ pipeline:
                   timeout: 1m
                   when:
                     stageStatus: Success
-                    condition: <+execution.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID> != "NONE"
+                    condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
               - step:
                   type: ShellScript
                   name: Trigger AI Remediation
