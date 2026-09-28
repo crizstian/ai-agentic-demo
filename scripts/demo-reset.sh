@@ -284,7 +284,7 @@ TEST_COUNT=$(find "${PROJECT_DIR}/tests" -name "test_*.py" | wc -l | tr -d ' ')
 check "Only 2 test files (test_health.py + test_dashboard.py)" "$R"
 
 # Count actual test functions
-FUNC_COUNT=$(grep -r "^def test_" "${PROJECT_DIR}/tests/" 2>/dev/null | wc -l | tr -d ' ')
+FUNC_COUNT=$(grep -r --exclude-dir=node_modules --exclude-dir=e2e "^def test_" "${PROJECT_DIR}/tests/" 2>/dev/null | wc -l | tr -d ' ')
 [[ "$FUNC_COUNT" -eq 2 ]] && R="pass" || R="fail"
 check "Only 2 test functions total" "$R"
 
