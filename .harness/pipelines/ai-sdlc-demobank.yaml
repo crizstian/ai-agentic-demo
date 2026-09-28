@@ -35,7 +35,7 @@ pipeline:
                   identifier: PR_Pipeline
                   when:
                     stageStatus: Success
-                    condition: <+trigger.event> == "PR" && <+codebase.branch> == "secops/ai-agentic-demo"
+                    condition: <+trigger.event> == "PR" && <+trigger.sourceBranch> == "secops/ai-agentic-demo"
                   steps:
                     - stepGroup:
                         name: Build Validation
