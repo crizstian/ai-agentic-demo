@@ -442,7 +442,7 @@ pipeline:
             type: String
             description: ""
             required: false
-            value: <+secrets.getValue("CristianGithub")>
+            value: <+secrets.getValue("harnessToken")>
     - stage:
         name: Deploy DemoBank
         identifier: Deploy_DemoBank
@@ -552,7 +552,7 @@ pipeline:
                       timeout: 1m
                       when:
                         stageStatus: Success
-                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
               - stepGroup:
                   name: Canary Deployment
                   identifier: canaryDeployment
@@ -626,7 +626,7 @@ pipeline:
                   timeout: 15m
                   when:
                     stageStatus: Success
-                    condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
+                    condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
               - stepGroup:
                   name: Primary Deployment
                   identifier: primaryDeployment
@@ -654,7 +654,7 @@ pipeline:
                       timeout: 1m
                       when:
                         stageStatus: Success
-                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED"
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
                   - step:
                       type: ShellScript
                       name: AI SRE Deploy Notification
@@ -1129,5 +1129,10 @@ pipeline:
       description: Docker image tag — defaults to pipeline run number, agent overrides with last successful build tag
       required: false
       value: <+input>.default(<+pipeline.sequenceId>)
+    - name: skipApproval
+      type: String
+      description: Skip Jira and CAB approval gates (set by fix deploy triggers)
+      required: false
+      value: <+input>.default("false")
   fixedInputsOnRerun: true
   allowStageExecutions: true
