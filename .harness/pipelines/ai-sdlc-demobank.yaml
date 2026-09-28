@@ -688,12 +688,6 @@ pipeline:
                   timeout: 10m
                   spec: {}
               - step:
-                  name: Rolling Rollback
-                  identifier: rollingRollback
-                  type: K8sRollingRollback
-                  timeout: 10m
-                  spec: {}
-              - step:
                   type: JiraUpdate
                   name: ITSM Deployment Failed
                   identifier: Jira_Failed
@@ -708,7 +702,7 @@ pipeline:
                         value: "DEPLOYMENT FAILED — rollback executed. Stage: Deploy_DemoBank. Execution: <+pipeline.executionUrl>"
                   timeout: 1m
                   when:
-                    stageStatus: Success
+                    stageStatus: All
               - step:
                   type: ShellScript
                   name: Trigger AI Remediation
@@ -723,10 +717,17 @@ pipeline:
                           curl -X POST -H 'content-type: application/json' \
                             --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
                             -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>"}'
+                    environmentVariables: []
+                    outputVariables: []
                   timeout: 1m
                   when:
-                    stageStatus: Success
-                    condition: "!(<+codebase.commitMessage>.contains(\"manifest\"))"
+                    stageStatus: All
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
         tags: {}
         failureStrategies:
           - onFailure:
@@ -1043,7 +1044,7 @@ pipeline:
 
                           cd tests/e2e
                           npm install --silent 2>&1 | tail -3
-                          npx playwright test ui-alignment.spec.js --config=playwright.config.js --reporter=json 2>/dev/null > /tmp/pw-results.json || true
+                          npx playwright test ui-alignment.spec.js --config=playwright.config.js 2>&1 || true
                           cd ../..
 
                           if [ ! -s /tmp/pw-results.json ]; then
@@ -1053,7 +1054,15 @@ pipeline:
                           else
                             FAILURES=$(node -e "
                               const r = JSON.parse(require('fs').readFileSync('/tmp/pw-results.json','utf8'));
-                              const fails = (r.suites||[]).flatMap(s => s.specs||[]).filter(s => s.ok === false);
+                              function collectSpecs(suites) {
+                                let specs = [];
+                                for (const s of suites || []) {
+                                  specs.push(...(s.specs || []));
+                                  specs.push(...collectSpecs(s.suites));
+                                }
+                                return specs;
+                              }
+                              const fails = collectSpecs(r.suites).filter(s => s.ok === false);
                               const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
                               console.log(msgs.join(' | '));
                             ")
