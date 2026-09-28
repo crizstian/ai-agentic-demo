@@ -1031,8 +1031,7 @@ pipeline:
                       name: UI Alignment Test
                       identifier: UI_Alignment_Test
                       spec:
-                        connectorRef: DockerCristian
-                        image: playwright/playwright:v1.48.0-noble
+                        image: mcr.microsoft.com/playwright:v1.48.0-noble
                         shell: Bash
                         command: |-
                           #!/bin/bash
