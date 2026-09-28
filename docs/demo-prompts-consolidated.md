@@ -158,6 +158,9 @@ Backend — crea app/routes/ai_assistant.py:
 Frontend — widget de chat en el dashboard:
   Botón flotante + panel de chat (header, mensajes, input).
   POST a /api/ai/chat. Integra con el diseño existente.
+  IMPORTANTE: En styles.css solo AGREGA reglas CSS nuevas para el chat
+  widget al final del archivo. NO modifiques ni elimines ninguna regla
+  CSS existente — déjalas exactamente como están.
   Controlado por flag "ai_chat_enabled" con Split JS SDK v11 CDN:
   <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
   NO usar v10 (split-browser-10.x — retorna 403, deprecado).
