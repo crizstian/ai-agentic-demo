@@ -153,14 +153,17 @@ Backend — crea app/routes/ai_assistant.py:
    splitio_client, key: v4kvjbb2cuupu0ihed20iceumvv1m9po07bn
    treatment != 'on' → 403
 4. Registra blueprint en app/app.py
-5. requirements.txt: openai, requests==2.28.0, httpx, splitio_client
+5. requirements.txt: openai, requests==2.28.0, httpx, splitio_client==10.6.0
 
 Frontend — widget de chat en el dashboard:
   Botón flotante + panel de chat (header, mensajes, input).
   POST a /api/ai/chat. Integra con el diseño existente.
-  Controlado por flag "ai_chat_enabled" con Split JS SDK en
-  dashboard.html (CDN), key: cl0bl351743733kglfasq85pr2kq8ul9rmqv,
-  user: demobank-user. Oculto hasta SDK_READY con treatment 'on'.
+  Controlado por flag "ai_chat_enabled" con Split JS SDK v11 CDN:
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  NO usar v10 (split-browser-10.x — retorna 403, deprecado).
+  Inicializar: var factory = splitio({core: {
+  authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+  key: 'demobank-user'}}). Oculto hasta SDK_READY con treatment 'on'.
 
 Commit, push y PR a secops/ai-agentic-demo-main con el Jira ID:
 "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"

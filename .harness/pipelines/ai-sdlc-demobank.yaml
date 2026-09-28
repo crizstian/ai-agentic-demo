@@ -187,8 +187,6 @@ pipeline:
                         identifier: Apply_Fixes
                         spec:
                           shell: Bash
-                          envVariables:
-                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
                           command: |-
                             #!/bin/bash
                             set -euo pipefail
@@ -232,9 +230,11 @@ pipeline:
                             fi
 
                             git commit -m "fix: AI agent auto-remediation — tests + security fixes"
-                            git push origin HEAD:"$SOURCE_BRANCH"
+                            #git push origin HEAD:"$SOURCE_BRANCH"
 
                             echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
+                          envVariables:
+                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
                         when:
                           stageStatus: Success
               - stepGroup:
@@ -1000,98 +1000,68 @@ pipeline:
             spec: {}
           execution:
             steps:
-              - parallel:
-                  - step:
-                      type: Run
-                      name: Generate N-S Traffic
-                      identifier: Generate_NS_Traffic
-                      spec:
-                        shell: Sh
-                        command: |-
-                          npm install -g newman --silent
-                          BASE_URL="http://demobank-e2e.selatam.harness-demo.site"
+              - step:
+                  type: Run
+                  name: UI Alignment Test
+                  identifier: UI_Alignment_Test
+                  spec:
+                    image: mcr.microsoft.com/playwright:v1.48.0-noble
+                    shell: Bash
+                    command: |-
+                      #!/bin/bash
+                      set -euo pipefail
+                      echo "=== Running Playwright UI alignment checks ==="
 
-                          echo "=== Generating external N-S traffic for Traceable API baseline ==="
-                          echo "Source: Harness Cloud (public IP) -> Ingress -> DemoBank"
-                          echo "Target: $BASE_URL"
+                      cd tests/e2e
+                      npm install --silent 2>&1 | tail -3
+                      npx playwright test ui-alignment.spec.js --config=playwright.config.js 2>&1 || true
+                      cd ../..
 
-                          for i in $(seq 1 10); do
-                            echo "--- Cycle $i/10 ---"
-                            newman run deploy/k8s/newman-traffic/collection.json \
-                              --env-var "baseUrl=$BASE_URL" \
-                              --timeout-request 10000 \
-                              --suppress-exit-code || true
+                      if [ ! -s /tmp/pw-results.json ]; then
+                        echo "WARNING: Playwright produced no JSON output"
+                        DEFECTS="NONE"
+                        FILES="NONE"
+                      else
+                        FAILURES=$(node -e "
+                          const r = JSON.parse(require('fs').readFileSync('/tmp/pw-results.json','utf8'));
+                          function collectSpecs(suites) {
+                            let specs = [];
+                            for (const s of suites || []) {
+                              specs.push(...(s.specs || []));
+                              specs.push(...collectSpecs(s.suites));
+                            }
+                            return specs;
+                          }
+                          const fails = collectSpecs(r.suites).filter(s => s.ok === false);
+                          const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
+                          console.log(msgs.join(' | '));
+                        ")
 
-                            newman run deploy/k8s/newman-traffic/ai-collection.json \
-                              --env-var "baseUrl=$BASE_URL" \
-                              --timeout-request 10000 \
-                              --suppress-exit-code || true
-
-                            sleep 5
-                          done
-                          echo "=== External traffic generation complete: 10 cycles x 35 requests = 350 N-S requests ==="
-                  - step:
-                      type: Run
-                      name: UI Alignment Test
-                      identifier: UI_Alignment_Test
-                      spec:
-                        image: mcr.microsoft.com/playwright:v1.48.0-noble
-                        shell: Bash
-                        command: |-
-                          #!/bin/bash
-                          set -euo pipefail
-                          echo "=== Running Playwright UI alignment checks ==="
-
-                          cd tests/e2e
-                          npm install --silent 2>&1 | tail -3
-                          npx playwright test ui-alignment.spec.js --config=playwright.config.js 2>&1 || true
-                          cd ../..
-
-                          if [ ! -s /tmp/pw-results.json ]; then
-                            echo "WARNING: Playwright produced no JSON output"
-                            DEFECTS="NONE"
-                            FILES="NONE"
-                          else
-                            FAILURES=$(node -e "
-                              const r = JSON.parse(require('fs').readFileSync('/tmp/pw-results.json','utf8'));
-                              function collectSpecs(suites) {
-                                let specs = [];
-                                for (const s of suites || []) {
-                                  specs.push(...(s.specs || []));
-                                  specs.push(...collectSpecs(s.suites));
-                                }
-                                return specs;
-                              }
-                              const fails = collectSpecs(r.suites).filter(s => s.ok === false);
-                              const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
-                              console.log(msgs.join(' | '));
-                            ")
-
-                            if [ -z "$FAILURES" ]; then
-                              echo "All UI checks passed"
-                              DEFECTS="NONE"
-                              FILES="NONE"
-                            else
-                              echo "UI DEFECTS FOUND: $FAILURES"
-                              DEFECTS="$FAILURES"
-                              FILES="app/static/styles.css, app/templates/dashboard.html"
-                            fi
-                          fi
-                        envVariables:
-                          BASE_URL: http://demobank-e2e.selatam.harness-demo.site
-                        outputVariables:
-                          - name: DEFECTS
-                            type: String
-                            value: DEFECTS
-                          - name: FILES
-                            type: String
-                            value: FILES
-                      failureStrategies:
-                        - onFailure:
-                            errors:
-                              - AllErrors
-                            action:
-                              type: MarkAsSuccess
+                        if [ -z "$FAILURES" ]; then
+                          echo "All UI checks passed"
+                          DEFECTS="NONE"
+                          FILES="NONE"
+                        else
+                          echo "UI DEFECTS FOUND: $FAILURES"
+                          DEFECTS="$FAILURES"
+                          FILES="app/static/styles.css, app/templates/dashboard.html"
+                        fi
+                      fi
+                    envVariables:
+                      BASE_URL: http://demobank-e2e.selatam.harness-demo.site
+                    outputVariables:
+                      - name: DEFECTS
+                        type: String
+                        value: DEFECTS
+                      - name: FILES
+                        type: String
+                        value: FILES
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: MarkAsSuccess
               - step:
                   type: Agent
                   name: QA UI Analyzer
@@ -1115,6 +1085,35 @@ pipeline:
                         action:
                           type: MarkAsSuccess
                 contextType: Pipeline
+              - step:
+                  type: Run
+                  name: Generate N-S Traffic
+                  identifier: Generate_NS_Traffic
+                  spec:
+                    shell: Sh
+                    command: |-
+                      npm install -g newman --silent
+                      BASE_URL="http://demobank-e2e.selatam.harness-demo.site"
+
+                      echo "=== Generating external N-S traffic for Traceable API baseline ==="
+                      echo "Source: Harness Cloud (public IP) -> Ingress -> DemoBank"
+                      echo "Target: $BASE_URL"
+
+                      for i in $(seq 1 10); do
+                        echo "--- Cycle $i/10 ---"
+                        newman run deploy/k8s/newman-traffic/collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        newman run deploy/k8s/newman-traffic/ai-collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        sleep 5
+                      done
+                      echo "=== External traffic generation complete: 10 cycles x 35 requests = 350 N-S requests ==="
           buildIntelligence:
             enabled: false
           caching:
