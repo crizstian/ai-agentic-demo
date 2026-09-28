@@ -14,50 +14,56 @@ agent:
               PLUGIN_MAX_TURNS: 30
               PLUGIN_TASK: |
                 You are the Kubernetes Manifest Remediator. A CD deployment failed.
-                Diagnose, fix, PR, merge, and re-deploy — fully autonomous.
+                Diagnose, fix, PR, merge — fully autonomous.
 
                 Execution URL: <+inputs.executionUrl>
+                Jira Key: <+pipeline.variables.jiraKey>
                 Repo: crizstian/ai-agentic-demo
                 Manifests: deploy/k8s/demobank/
+                Source branch: secops/ai-agentic-demo
+                Target branch: secops/ai-agentic-demo-main
+
+                ## Known failure scenario
+                The deployment.yaml references OPENAI_API_KEY via configMapKeyRef
+                from ConfigMap harnessbank-demo-end2end-config, but the ConfigMap
+                (configmap.yaml) is missing that key. The fix is to add the
+                OPENAI_API_KEY key to configmap.yaml with a placeholder value.
+
+                NEVER create a secret.yaml file. The Harness service only deploys
+                files already registered in the service manifest (deployment.yaml,
+                configmap.yaml, service.yaml, values.yaml). New files will NOT be
+                deployed to the cluster.
 
                 ## Process
                 1. Fetch the failed execution via Harness MCP. Get logs from the
-                   failed deploy step. Identify the error.
-                2. Read the relevant manifest in deploy/k8s/demobank/ (local /harness
-                   first, GitHub MCP fallback). Common failures:
-                   - ConfigMap/Secret key mismatch (envFrom, configMapKeyRef)
-                   - Image pull errors (tag, registry, imagePullSecrets)
-                   - Selector/label mismatch
-                   - Probe misconfiguration
-                3. Apply the minimal fix. Do NOT refactor, do NOT change unrelated
-                   files, do NOT modify application code.
-                4. Validate: kubectl apply --dry-run=client -f <file>
-                5. Create branch fix/manifest-remediation from secops/ai-agentic-demo
-                   (delete first if exists). Commit + push.
-                   Message: "Fix Kubernetes manifest issue detected by Harness CD"
-                6. Create PR to secops/ai-agentic-demo-main with:
-                   - What failed (stage, step, error)
-                   - Root cause
-                   - Fix applied (before/after)
-                   - Validation result
-                7. Merge the PR immediately (automated remediation, no approval needed).
-                8. Extract sequenceId from the FAILED execution (pipeline run number =
-                   Docker image tag). Execute pipeline AI_SDLC_DemoBank with ONLY:
-                   - Deploy_DemoBank
-                   - Deploy_MCP
-                   - External_Traffic
-                   Branch: secops/ai-agentic-demo-main
-                   Variable imageTag = sequenceId from step 8.
-                   Do NOT run CI stage — images already built.
+                   failed deploy step. Confirm the error is a missing ConfigMap key.
+                2. Read deploy/k8s/demobank/configmap.yaml from GitHub MCP
+                   (branch: secops/ai-agentic-demo). Verify OPENAI_API_KEY is missing.
+                3. Add the missing key to configmap.yaml:
+                   OPENAI_API_KEY: "sk-placeholder-for-demo"
+                   Do NOT modify deployment.yaml. Do NOT create new files.
+                4. Create branch fix/manifest-remediation from secops/ai-agentic-demo
+                   (delete first if exists). Push ONLY configmap.yaml.
+                   Commit message MUST be exactly:
+                   "Fix Kubernetes manifest: add OPENAI_API_KEY to ConfigMap [<+pipeline.variables.jiraKey>]"
+                5. Create PR to secops/ai-agentic-demo-main with:
+                   - Title: "Fix Kubernetes manifest: add OPENAI_API_KEY to ConfigMap [<+pipeline.variables.jiraKey>]"
+                   - Body: What failed, Root cause (missing key in ConfigMap), Fix applied
+                6. Merge the PR immediately (squash merge).
+                7. Delete the fix branch (fix/manifest-remediation) after merge.
+                8. STOP. The kubernetes_fix_deploy_trigger fires automatically on merge.
+                   Do NOT manually execute any pipeline.
+
+                IMPORTANT: Every commit message and PR title MUST contain:
+                - The word "manifest" (triggers the re-deploy pipeline)
+                - The Jira key: <+pipeline.variables.jiraKey>
 
                 If confidence is low, create the PR but do NOT merge. Print the URL.
-
-                STOP after triggering re-deploy. Do not iterate.
               PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
               PLUGIN_MCP_FORMAT: harness
               PLUGIN_MCP_SERVERS: <+connectorInputs.resolveList(<+inputs.mcpConnectors>)>
               ANTHROPIC_MODEL: ${{inputs.modelName}}
-              HARNESS_TOKEN: <+secrets.getValue("CristianGithub")>
+              HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
   inputs:
     llmConnector:
       type: connector
