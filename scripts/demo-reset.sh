@@ -348,13 +348,9 @@ if [[ "$DO_COMMIT" == true ]]; then
     # Stage test files (restored + new minimal)
     git add tests/conftest.py tests/test_health.py tests/test_dashboard.py
 
-    # Stage deletion of removed files
+    # Stage deletion of removed files (dynamic — catches any tracked file deleted from disk)
     for f in app/routes/ai_assistant.py \
-             tests/test_accounts.py tests/test_admin.py tests/test_ai_assistant.py \
-             tests/test_app_factory.py tests/test_config.py tests/test_db.py \
-             tests/test_fx.py tests/test_k8s_manifest.py tests/test_seed.py \
-             tests/test_statements.py tests/test_transfers.py \
-             tests/dashboard-layout.test.js; do
+             $(git -C "$PROJECT_DIR" diff --name-only --diff-filter=D -- tests/); do
         if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
             git rm --cached "$f" 2>/dev/null || true
         fi
