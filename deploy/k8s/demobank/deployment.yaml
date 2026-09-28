@@ -48,10 +48,11 @@ spec:
                 configMapKeyRef:
                   name: harnessbank-demo-end2end-config
                   key: MCP_SERVER_URL
-            # OPENAI_API_KEY is added by the coding agent in Act 1
-            # when the AI assistant feature is introduced.
-            # The ConfigMap intentionally lacks this key, causing
-            # CreateContainerConfigError → Act 4.5 Manifest Remediator
+            - name: OPENAI_API_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: OPENAI_API_KEY
 
           ports:
             - containerPort: {{ .Values.containerPort }}
