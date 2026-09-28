@@ -48,6 +48,11 @@ spec:
                 configMapKeyRef:
                   name: harnessbank-demo-end2end-config
                   key: MCP_SERVER_URL
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: demobank-secrets
+                  key: OPENAI_API_KEY
 
           ports:
             - containerPort: {{ .Values.containerPort }}

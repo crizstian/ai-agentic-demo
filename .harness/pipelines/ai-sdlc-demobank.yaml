@@ -35,7 +35,7 @@ pipeline:
                   identifier: PR_Pipeline
                   when:
                     stageStatus: Success
-                    condition: <+trigger.event> == "PR"
+                    condition: <+trigger.event> == "PR" && <+codebase.branch> == "secops/ai-agentic-demo"
                   steps:
                     - stepGroup:
                         name: Build Validation
@@ -982,7 +982,7 @@ pipeline:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
     - stage:
-        name: External Traffic Generation
+        name: QA Tests
         identifier: External_Traffic
         description: Generate N-S traffic from Harness Cloud for Traceable API discovery and baseline learning
         type: CI
@@ -1031,6 +1031,7 @@ pipeline:
                       name: UI Alignment Test
                       identifier: UI_Alignment_Test
                       spec:
+                        connectorRef: DockerCristian
                         image: mcr.microsoft.com/playwright:v1.48.0-noble
                         shell: Bash
                         command: |-
@@ -1060,11 +1061,15 @@ pipeline:
                             DEFECTS="$FAILURES"
                             FILES="app/static/styles.css, app/templates/dashboard.html"
                           fi
-                        outputVariables:
-                          - name: DEFECTS
-                          - name: FILES
                         envVariables:
                           BASE_URL: http://demobank-e2e.selatam.harness-demo.site
+                        outputVariables:
+                          - name: DEFECTS
+                            type: String
+                            value: DEFECTS
+                          - name: FILES
+                            type: String
+                            value: FILES
                       failureStrategies:
                         - onFailure:
                             errors:
@@ -1095,6 +1100,9 @@ pipeline:
                 contextType: Pipeline
           buildIntelligence:
             enabled: false
+          caching:
+            enabled: false
+            paths: []
         when:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")

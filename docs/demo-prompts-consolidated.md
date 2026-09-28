@@ -47,6 +47,7 @@ PR Trigger → CI Stage (Build):
 │   └── Apply Fixes (commit + push)
 │
 ├── Build and Supply Chain [solo en merge a secops/ai-agentic-demo-main]
+│   ├── Extract Jira ID (grep [A-Z]+-\d+ from commit message)
 │   ├── [parallel] Build DemoBank Image + Build MCP Financial Data
 │   ├── [parallel] SBOM DemoBank + SBOM MCP (CycloneDX + keyless)
 │   ├── [parallel] SLSA DemoBank + SLSA MCP (provenance + keyless)
@@ -56,12 +57,16 @@ PR Trigger → CI Stage (Build):
 
 Merge Trigger → CD Stages:
 ├── Deploy DemoBank
+│   ├── ITSM: Jira → In Progress (JiraUpdate, HD project)
 │   ├── Supply Chain Verification [parallel, stepGroupInfra: K8s]
 │   │   ├── SBOM Enforcement (policy set: SSCA)
 │   │   ├── SLSA Verification (keyless)
 │   │   └── Artifact Verification (keyless)
 │   ├── Canary Deployment (2 pods) → FAILS (ConfigMap key mismatch)
-│   ├── Rollback → Canary Delete + Rolling Rollback
+│   ├── CAB Approval Gate (JiraApproval: Approved/Done → proceed, Rejected → fail)
+│   ├── Primary Deployment (rolling)
+│   ├── ITSM: Jira → Done (JiraUpdate)
+│   ├── Rollback → Canary Delete + Rolling Rollback + Jira → Rejected
 │   └── Trigger AI Remediation → webhook to Kubernetes Remediation pipeline
 │
 ├── Kubernetes Remediation (pipeline separado, triggered by webhook)
@@ -88,7 +93,15 @@ Merge Trigger → CD Stages:
 │       └── Full Rollout: 100/0 ambos flags
 │       └── [Rollback: ambos flags → 100% off + K8s Rolling Rollback]
 │
-└── External Traffic Generation (Newman, 10 ciclos × 35 req = 350 N-S)
+└── External Traffic Generation + Post-Deploy QA
+    ├── Generate N-S Traffic (Newman, 10 ciclos × 35 req = 350 N-S)
+    ├── UI Alignment Test (Playwright: checks card transforms + button visibility)
+    │   └── Output: DEFECTS, FILES → output variables
+    └── QA UI Analyzer Agent (claude-sonnet-4-6) — si DEFECTS != "NONE"
+        ├── Read affected CSS/HTML via GitHub MCP
+        ├── Identify root cause (broken transforms, off-screen margins)
+        ├── Create fix branch + PR to secops/ai-agentic-demo-main
+        └── Export remediation report
 ```
 
 ---
@@ -123,6 +136,10 @@ Cada prompt en esta guía está listo para **copiar y pegar**. Cada uno está et
 Agrega un Asistente de Chat AI a DemoBank — backend + frontend.
 Prioriza funcionalidad, la seguridad la endurecemos después.
 
+Paso 0 — Crea un ticket Jira (Task) en proyecto HD (Harness Demo):
+  Summary: "feat: add AI banking assistant chat widget to dashboard"
+  Usa el Jira ID retornado (ej. HD-201200) en el commit y PR title.
+
 Backend — crea app/routes/ai_assistant.py:
 1. POST /api/ai/chat — acepta { "message": "..." }. Construye el
    system prompt concatenando el mensaje del usuario directamente
@@ -143,10 +160,11 @@ Frontend — widget de chat en el dashboard:
   POST a /api/ai/chat. Integra con el diseño existente.
   Controlado por flag "ai_chat_enabled" con Split JS SDK en
   dashboard.html (CDN), key: cl0bl351743733kglfasq85pr2kq8ul9rmqv,
-  user: demobank-web. Oculto hasta SDK_READY con treatment 'on'.
+  user: anonymous. Oculto hasta SDK_READY con treatment 'on'.
 
-Commit, push y PR a secops/ai-agentic-demo-main:
-"feat: add AI banking assistant chat widget to dashboard"
+Commit, push y PR a secops/ai-agentic-demo-main con el Jira ID:
+"feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
+donde HD-XXXXXX es el ID real del ticket creado en Paso 0.
 ```
 
 > **Vulnerabilidades introducidas** (detectadas en Act 3):
@@ -663,10 +681,14 @@ Esperar `2/2 Running`. Sin TME, Block mode no tiene efecto.
 | **Quality Agent** | PR Validation | Genera unit tests si cobertura baja (claude-sonnet-4-6, 20 turns) |
 | **Security Remediator** | Security Scanning | Auto-remedia CRITICAL/HIGH vulns (claude-sonnet-4-6, 25 turns) |
 | **Apply Fixes** | PR Validation | Commit + push centralizado de cambios de agents |
+| **Extract Jira ID** | Build & Supply Chain | Extrae HD-XXXXX del commit message para Jira steps en CD |
+| **ITSM Jira Updates** | Deploy DemoBank | Jira transitions: In Progress → CAB Approval → Done / Rejected |
 | **AI SRE Notifications** | Post-CI / Post-CD | Webhooks awareness (build + deploy) |
 | **Feature Flags Rollout** | Post-Deploy | Progressive rollout dual flag: QA → Beta → GA → Full |
 | **Manifest Remediator** | K8s Remediation (pipeline separado) | Diagnostica → fix → PR → merge → re-deploy (claude-sonnet-4-6, 30 turns) |
 | **External Traffic Gen** | Post-Deploy | Newman 350 req N-S para baseline Traceable |
+| **UI Alignment Test** | Post-Deploy QA | Playwright e2e: detecta CSS defects (rotación, off-screen) → output vars |
+| **QA UI Analyzer** | Post-Deploy QA | Lee defects + archivos vía MCP, crea PR con fix CSS (claude-sonnet-4-6, 20 turns) |
 
 ### El Arco
 
