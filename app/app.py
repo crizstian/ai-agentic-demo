@@ -12,7 +12,7 @@ from .routes.statements import statements_bp
 from .routes.transfers import transfers_bp
 
 APP_NAME = "DemoBank AI SDLC"
-
+DEMO = "1.0.0"
 
 def create_app():
     app = Flask(
