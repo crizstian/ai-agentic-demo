@@ -330,13 +330,13 @@ check "DB schema uses TEXT ids (original)" "$R"
 grep -q "requests" "${PROJECT_DIR}/requirements.txt" 2>/dev/null && R="fail" || R="pass"
 check "No requests library in requirements.txt" "$R"
 
-# Only 2 test files remain
-TEST_COUNT=$(find "${PROJECT_DIR}/tests" -name "test_*.py" | wc -l | tr -d ' ')
+# Only 2 test files remain (exclude e2e/ subdirectory)
+TEST_COUNT=$(find "${PROJECT_DIR}/tests" -maxdepth 1 -name "test_*.py" | wc -l | tr -d ' ')
 [[ "$TEST_COUNT" -eq 2 ]] && R="pass" || R="fail"
 check "Only 2 test files (test_health.py + test_dashboard.py)" "$R"
 
-# Count actual test functions
-FUNC_COUNT=$(grep -r --exclude-dir=node_modules --exclude-dir=e2e "^def test_" "${PROJECT_DIR}/tests/" 2>/dev/null | wc -l | tr -d ' ')
+# Count actual test functions (glob avoids BusyBox grep --exclude-dir incompatibility)
+FUNC_COUNT=$(grep "^def test_" "${PROJECT_DIR}"/tests/test_*.py 2>/dev/null | wc -l | tr -d ' ')
 [[ "$FUNC_COUNT" -eq 2 ]] && R="pass" || R="fail"
 check "Only 2 test functions total" "$R"
 
