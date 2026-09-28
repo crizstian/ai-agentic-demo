@@ -154,6 +154,9 @@ Backend — crea app/routes/ai_assistant.py:
    treatment != 'on' → 403
 4. Registra blueprint en app/app.py
 5. requirements.txt: openai, requests==2.28.0, httpx, splitio_client==10.6.0
+6. En deploy/k8s/demobank/deployment.yaml agrega un env var para
+   OPENAI_API_KEY que lea del ConfigMap harnessbank-demo-end2end-config
+   key OPENAI_API_KEY (justo después de MCP_SERVER_URL).
 
 Frontend — widget de chat en el dashboard:
   Botón flotante + panel de chat (header, mensajes, input).
