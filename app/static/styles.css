@@ -130,14 +130,6 @@ body {
   transition: box-shadow 0.2s;
 }
 
-.action-card:nth-child(2) {
-  transform: rotate(6deg) translateY(12px);
-}
-
-.action-card:nth-child(3) {
-  transform: rotate(-4deg) translateY(8px);
-}
-
 .action-card:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
@@ -276,7 +268,7 @@ body {
 
 .form-actions {
   margin-top: 24px;
-  margin-left: 420px;
+  margin-left: 0;
 }
 
 .apply-transfer-btn {
