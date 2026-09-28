@@ -53,6 +53,7 @@ spec:
                 configMapKeyRef:
                   name: harnessbank-demo-end2end-config
                   key: OPENAI_API_KEY
+                  optional: true
 
           ports:
             - containerPort: {{ .Values.containerPort }}
