@@ -160,7 +160,7 @@ Frontend — widget de chat en el dashboard:
   POST a /api/ai/chat. Integra con el diseño existente.
   Controlado por flag "ai_chat_enabled" con Split JS SDK en
   dashboard.html (CDN), key: cl0bl351743733kglfasq85pr2kq8ul9rmqv,
-  user: anonymous. Oculto hasta SDK_READY con treatment 'on'.
+  user: demobank-user. Oculto hasta SDK_READY con treatment 'on'.
 
 Commit, push y PR a secops/ai-agentic-demo-main con el Jira ID:
 "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
