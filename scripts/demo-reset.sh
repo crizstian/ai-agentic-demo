@@ -5,9 +5,10 @@ set -euo pipefail
 # DemoBank Demo Reset — Reset app code to STATE 0 (clean, pre-Act-1)
 #
 # Official branches:
-#   secops/ai-agentic-demo       — working branch (fully remediated, Acts 1-7 done)
-#   secops/ai-agentic-demo-main  — intermediate state (AI features + AI vulns only)
-#   main                         — upstream clean state (basic vulns, no AI)
+#   secops/ai-agentic-demo         — working branch (fully remediated, Acts 1-7 done)
+#   secops/ai-agentic-demo-main    — target branch for PRs (has configmap bug)
+#   secops/ai-agentic-demo-deploy  — stable deploy manifests (configmap fixed)
+#   main                           — upstream clean state (basic vulns, no AI)
 #
 # This script restores app source files from 'main' to STATE 0:
 #   - No AI assistant (no ai_assistant.py, no chat widget)
@@ -16,39 +17,27 @@ set -euo pipefail
 #   - Command injection PRESENT (shell=True — VULN-002)
 #   - Reflected XSS PRESENT (unescaped param — VULN-006)
 #   - CORS wildcard PRESENT (origins="*" — VULN-007)
+#   - CSS misalignment PRESENT (rotated cards + off-screen button)
 #   - DB schema uses TEXT ids (original)
 #   - requests library NOT in requirements.txt
 #   - Only 2 unit tests (test_health + test_dashboard smoke)
-#     → Code review agent detects lack of coverage
-#     → Worker agent generates missing tests
+#   - ConfigMap missing OPENAI_API_KEY (Act 4.5 bug)
 #
 # Files UNTOUCHED (preserved from secops/ai-agentic-demo):
-#   docs/         — prompt cards, architecture diagrams
-#   deploy/       — k8s manifests, traceable configs
+#   deploy/       — k8s manifests (configmap reset separately)
 #   .harness/     — pipelines, services, environments, OPA policies
 #   scripts/      — attack-chain, traceable-demo-setup (this script is also preserved)
 #   services/     — mcp-financial-data
 #   policies/     — OPA rego files
 #   .claude/      — agents, commands, CLAUDE.md
-#
-# Demo lifecycle after reset:
-#   STATE 0 (this script)
-#     → Act 1: coding agent introduces AI feature + vulns (VULN-008/009/010)
-#     → Act 2: pipeline governs (build, test, SLSA)
-#     → Act 3: security agent finds + remediates ALL vulns
-#     → Act 4: deploy (canary + CV)
-#     → Act 4.5: ConfigMap key mismatch → CreateContainerConfigError
-#               → rollback → AI Manifest Remediator agent creates PR
-#     → Act 5: attacker exploits (Traceable detects in Monitor)
-#     → Act 6: AI SRE responds
-#     → Act 7: Block mode + AI Security
+#   docs/         — prompt cards, architecture diagrams
 #
 # Usage:
 #   ./scripts/demo-reset.sh                    # Reset app code only (dry view)
 #   ./scripts/demo-reset.sh --db               # Also reset database
 #   ./scripts/demo-reset.sh --commit           # Reset + commit + sync target branch
-#   ./scripts/demo-reset.sh --commit --push    # Reset + commit + sync + push both branches
-#   ./scripts/demo-reset.sh --db --commit --push  # Full reset + commit + sync + push
+#   ./scripts/demo-reset.sh --commit --push    # Reset + commit + sync + push + deploy
+#   ./scripts/demo-reset.sh --db --commit --push  # Full reset + commit + sync + push + deploy
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,6 +48,10 @@ DB_PATH="${DB_PATH:-$PROJECT_DIR/demobank.db}"
 SOURCE_BRANCH="main"
 # Target branch that receives PRs — synced to same commit to avoid conflicts
 TARGET_BRANCH="secops/ai-agentic-demo-main"
+# Stable deploy branch — configmap has OPENAI_API_KEY (no CreateContainerConfigError)
+DEPLOY_BRANCH="secops/ai-agentic-demo-deploy"
+# Reset deploy images
+RESET_IMAGE_TAG="3"
 
 RESET_DB=false
 DO_COMMIT=false
@@ -73,7 +66,7 @@ for arg in "$@"; do
             echo "Usage: $0 [--db] [--commit] [--push]"
             echo "  --db      Also reset the database (delete + re-seed)"
             echo "  --commit  Commit the reset + sync target branch ($TARGET_BRANCH)"
-            echo "  --push    Push both branches to origin after commit"
+            echo "  --push    Push all branches + trigger DemoBank Reset Deploy (tag $RESET_IMAGE_TAG)"
             exit 0
             ;;
         *) echo "Unknown option: $arg"; exit 1 ;;
@@ -176,6 +169,54 @@ print_ok "Cleaned __pycache__"
 echo ""
 
 # =========================================================================
+# 2b. Inject CSS misalignment bugs (QA agent demo)
+# =========================================================================
+echo -e "${CYAN}--- Injecting CSS misalignment bugs ---${NC}"
+
+CSS_FILE="${PROJECT_DIR}/app/static/styles.css"
+
+# Inject off-screen transfer button (margin-left: 600px)
+if grep -q "\.form-actions" "$CSS_FILE" 2>/dev/null; then
+    sed -i '/\.form-actions {/,/}/ s/margin-top: 24px;/margin-top: 24px;\n  margin-left: 600px;/' "$CSS_FILE"
+    print_ok "Injected off-screen transfer button (margin-left: 600px)"
+else
+    print_warn "Could not find .form-actions block in styles.css"
+fi
+
+# Inject rotated action cards
+cat >> "$CSS_FILE" << 'CSSEOF'
+
+.action-card:nth-child(2) {
+  transform: rotate(3deg) translateY(10px);
+}
+.action-card:nth-child(3) {
+  transform: rotate(-2deg) translateY(15px);
+}
+.action-card:nth-child(4) {
+  transform: rotate(4deg) translateY(8px);
+}
+CSSEOF
+print_ok "Injected rotated card transforms"
+echo ""
+
+# =========================================================================
+# 2c. Reset deploy manifests (ConfigMap bug for Act 4.5)
+# =========================================================================
+echo -e "${CYAN}--- Resetting deploy manifests ---${NC}"
+
+CONFIGMAP_FILE="${PROJECT_DIR}/deploy/k8s/demobank/configmap.yaml"
+
+# Remove OPENAI_API_KEY from configmap (remediator adds it during Act 4.5)
+if grep -q "OPENAI_API_KEY" "$CONFIGMAP_FILE" 2>/dev/null; then
+    sed -i '/OPENAI_API_KEY/d' "$CONFIGMAP_FILE"
+    print_ok "Removed OPENAI_API_KEY from configmap.yaml (Act 4.5 bug restored)"
+else
+    print_info "configmap.yaml already clean (no OPENAI_API_KEY)"
+fi
+
+echo ""
+
+# =========================================================================
 # 3. Reset tests to minimal coverage (2 tests only)
 # =========================================================================
 echo -e "${CYAN}--- Resetting tests to minimal coverage ---${NC}"
@@ -263,6 +304,17 @@ check "VULN-006 present: Reflected XSS (unescaped)" "$R"
 grep -q 'origins="\*"' "${PROJECT_DIR}/app/app.py" 2>/dev/null && R="pass" || R="fail"
 check "VULN-007 present: CORS wildcard" "$R"
 
+# CSS misalignment bugs PRESENT
+grep -q "rotate(3deg)" "${PROJECT_DIR}/app/static/styles.css" 2>/dev/null && R="pass" || R="fail"
+check "CSS bug present: rotated action cards" "$R"
+
+grep -q "margin-left: 600px" "${PROJECT_DIR}/app/static/styles.css" 2>/dev/null && R="pass" || R="fail"
+check "CSS bug present: off-screen transfer button" "$R"
+
+# ConfigMap OPENAI_API_KEY must NOT be present (Act 4.5 bug)
+grep -q "OPENAI_API_KEY" "${PROJECT_DIR}/deploy/k8s/demobank/configmap.yaml" 2>/dev/null && R="fail" || R="pass"
+check "ConfigMap missing OPENAI_API_KEY (Act 4.5 bug)" "$R"
+
 # No PII in seed data
 grep -q "email" "${PROJECT_DIR}/scripts/seed.py" 2>/dev/null && R="fail" || R="pass"
 check "No PII (email) in seed.py" "$R"
@@ -342,8 +394,9 @@ if [[ "$DO_COMMIT" == true ]]; then
 
     cd "$PROJECT_DIR"
 
-    # Stage restored files
+    # Stage restored files + CSS bugs + configmap reset
     git add "${RESTORE_FILES[@]}"
+    git add deploy/k8s/demobank/configmap.yaml 2>/dev/null || true
 
     # Stage test files (restored + new minimal)
     git add tests/conftest.py tests/test_health.py tests/test_dashboard.py
@@ -366,11 +419,10 @@ All intentional vulnerabilities are PRESENT for the demo flow:
   VULN-006: Reflected XSS (unescaped user input)
   VULN-007: Insecure CORS (wildcard origin)
 
+CSS misalignment bugs injected (rotated cards + off-screen button).
+ConfigMap OPENAI_API_KEY removed (Act 4.5 bug restored).
 Tests reduced to 2 (test_health + test_dashboard smoke).
-Code review agent will detect lack of coverage and trigger
-worker agent to generate missing unit tests.
-
-Removed: ai_assistant.py, chat widget, PII seed data, 11 test files.
+Removed: ai_assistant.py, chat widget, PII seed data.
 Preserved: docs, deploy, .harness, scripts, policies.
 EOF
     )"
@@ -400,23 +452,68 @@ EOF
         print_ok "Created target branch at commit ${RESET_COMMIT:0:7}"
     fi
 
+    # -----------------------------------------------------------------
+    # 6b2. Sync deploy branch (stable manifests with OPENAI_API_KEY)
+    # -----------------------------------------------------------------
+    echo ""
+    echo -e "${CYAN}--- Syncing deploy branch: $DEPLOY_BRANCH ---${NC}"
+
+    if git -C "$PROJECT_DIR" rev-parse --verify "$DEPLOY_BRANCH" >/dev/null 2>&1; then
+        git -C "$PROJECT_DIR" checkout "$DEPLOY_BRANCH"
+        git -C "$PROJECT_DIR" reset --hard "$RESET_COMMIT"
+    else
+        git -C "$PROJECT_DIR" checkout -b "$DEPLOY_BRANCH" "$RESET_COMMIT"
+    fi
+
+    # Add OPENAI_API_KEY to configmap on deploy branch (so deploy works)
+    if ! grep -q "OPENAI_API_KEY" "${PROJECT_DIR}/deploy/k8s/demobank/configmap.yaml"; then
+        echo '  OPENAI_API_KEY: "sk-placeholder-for-demo"' >> "${PROJECT_DIR}/deploy/k8s/demobank/configmap.yaml"
+        git -C "$PROJECT_DIR" add deploy/k8s/demobank/configmap.yaml
+        git -C "$PROJECT_DIR" commit -m "chore: add OPENAI_API_KEY to configmap for stable deploy branch"
+    fi
+    print_ok "Deploy branch has stable configmap (OPENAI_API_KEY present)"
+
     # Switch back to working branch
     git -C "$PROJECT_DIR" checkout "$CURRENT_BRANCH"
     git -C "$PROJECT_DIR" stash pop 2>/dev/null || true
     print_ok "Back on $CURRENT_BRANCH"
 
-    # Both branches now point to the same commit — PRs will be clean diffs
+    # All three branches synced — PRs will be clean diffs
     echo ""
 
     # -----------------------------------------------------------------
-    # 6c. Push both branches (optional)
+    # 6c. Push all branches (optional)
     # -----------------------------------------------------------------
     if [[ "$DO_PUSH" == true ]]; then
-        echo -e "${CYAN}--- Pushing both branches ---${NC}"
+        echo -e "${CYAN}--- Pushing all branches ---${NC}"
         git -C "$PROJECT_DIR" push origin "$CURRENT_BRANCH" --force-with-lease
         print_ok "Pushed $CURRENT_BRANCH"
-        git -C "$PROJECT_DIR" push origin "$TARGET_BRANCH" --force-with-lease
+        git -C "$PROJECT_DIR" push origin "$TARGET_BRANCH" --force
         print_ok "Pushed $TARGET_BRANCH"
+        git -C "$PROJECT_DIR" push origin "$DEPLOY_BRANCH" --force
+        print_ok "Pushed $DEPLOY_BRANCH"
+        echo ""
+
+        # -----------------------------------------------------------------
+        # 6d. Trigger DemoBank Reset Deploy pipeline (tag 3)
+        # -----------------------------------------------------------------
+        echo -e "${CYAN}--- Triggering DemoBank Reset Deploy (tag $RESET_IMAGE_TAG) ---${NC}"
+
+        WEBHOOK_URL="https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=DemoBank_Reset_Deploy&triggerIdentifier=reset_deploy_webhook"
+
+        RESPONSE=$(curl -s -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"imageTag\": \"$RESET_IMAGE_TAG\"}")
+
+        if echo "$RESPONSE" | grep -q "SUCCESS\|eventCorrelationId"; then
+            print_ok "DemoBank Reset Deploy triggered"
+            print_info "Deploying crizstian/harnessbank-demo:$RESET_IMAGE_TAG + crizstian/mcp-financial-data:$RESET_IMAGE_TAG"
+            print_info "Manifests from: $DEPLOY_BRANCH (stable configmap)"
+        else
+            print_fail "Failed to trigger pipeline"
+            print_info "Response: $RESPONSE"
+            print_info "Trigger manually: Harness > DemoBank Reset Deploy > Run (imageTag=$RESET_IMAGE_TAG)"
+        fi
         echo ""
     fi
 fi
@@ -449,24 +546,25 @@ echo -e "    SQLi (001):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CMDi (002):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    XSS  (006):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CORS (007):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
-echo -e "    Unit tests:    ${YELLOW}2 only${NC} (code review agent will flag, worker agent generates)"
+echo -e "    CSS bugs:      ${YELLOW}MISALIGNED${NC} (QA agent will fix)"
+echo -e "    ConfigMap:     ${YELLOW}MISSING KEY${NC} (Act 4.5 remediator will fix)"
+echo -e "    Unit tests:    ${YELLOW}2 only${NC} (code review agent will flag)"
 
 echo ""
-echo -e "  ${CYAN}Preserved:${NC}"
-echo -e "    docs/       prompt cards, architecture diagrams"
-echo -e "    deploy/     k8s manifests, traceable configs"
-echo -e "    .harness/   pipelines, services, environments"
-echo -e "    scripts/    attack-chain, traceable-setup, demo-reset"
+echo -e "  ${CYAN}Branches:${NC}"
+echo -e "    ${CYAN}$TARGET_BRANCH${NC}   — configmap ${RED}WITHOUT${NC} OPENAI_API_KEY (demo bug)"
+echo -e "    ${CYAN}$DEPLOY_BRANCH${NC}  — configmap ${GREEN}WITH${NC} OPENAI_API_KEY (reset deploy)"
 
 echo ""
 echo -e "  ${CYAN}Next steps:${NC}"
 if [[ "$DO_COMMIT" == false ]]; then
     echo -e "    git diff --stat                    # review changes"
-    echo -e "    $0 --commit            # commit + sync target"
-    echo -e "    $0 --commit --push     # commit + sync + push"
+    echo -e "    $0 --commit            # commit + sync branches"
+    echo -e "    $0 --commit --push     # commit + sync + push + deploy"
 elif [[ "$DO_PUSH" == false ]]; then
     echo -e "    git push origin $CURRENT_BRANCH --force-with-lease"
-    echo -e "    git push origin $TARGET_BRANCH --force-with-lease"
+    echo -e "    git push origin $TARGET_BRANCH --force"
+    echo -e "    git push origin $DEPLOY_BRANCH --force"
 fi
 echo ""
 

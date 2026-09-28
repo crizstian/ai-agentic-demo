@@ -456,6 +456,15 @@ pipeline:
               serviceDefinition:
                 type: Kubernetes
                 spec:
+                  manifests:
+                    - manifest:
+                        identifier: demobank_manifests
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              branch: secops/ai-agentic-demo-main
                   artifacts:
                     primary:
                       sources:
@@ -752,6 +761,15 @@ pipeline:
               serviceDefinition:
                 type: Kubernetes
                 spec:
+                  manifests:
+                    - manifest:
+                        identifier: mcp_financial_data_manifests
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              branch: secops/ai-agentic-demo-main
                   artifacts:
                     primary:
                       sources:
