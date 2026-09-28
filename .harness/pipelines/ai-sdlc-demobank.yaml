@@ -111,6 +111,7 @@ pipeline:
                                   - mcp_harness_cristian
                                   - mcp_github_cristian
                                 modelName: claude-sonnet-4-6
+                                maxTurns: 30
                             when:
                               stageStatus: Success
                             failureStrategies:
