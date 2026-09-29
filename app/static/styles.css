@@ -127,7 +127,12 @@ body {
   min-width: 160px;
   flex: 1;
   transition: box-shadow 0.2s;
+  transform: none;
 }
+
+.action-card:nth-child(2) { transform: none; }
+.action-card:nth-child(3) { transform: none; }
+.action-card:nth-child(4) { transform: none; }
 
 .action-card:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
