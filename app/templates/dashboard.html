@@ -100,6 +100,85 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
+  <!-- AI Chat Widget — controlled by Split FME flag ai_chat_enabled -->
+  <div id="ai-chat-widget" style="display:none;">
+    <button id="ai-chat-toggle" class="ai-chat-toggle" onclick="toggleChat()">
+      <span class="ai-chat-icon">💬</span>
+    </button>
+    <div id="ai-chat-panel" class="ai-chat-panel">
+      <div class="ai-chat-header">
+        <span>DemoBank AI Assistant</span>
+        <button class="ai-chat-close" onclick="toggleChat()">&times;</button>
+      </div>
+      <div id="ai-chat-messages" class="ai-chat-messages">
+        <div class="ai-chat-msg ai-chat-msg-bot">
+          Hi! I'm your DemoBank AI assistant. How can I help you today?
+        </div>
+      </div>
+      <div class="ai-chat-input-row">
+        <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="ai-chat-send" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  <script>
+    // Split SDK — feature flag ai_chat_enabled
+    var factory = splitio({
+      core: {
+        authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+        key: 'demobank-user'
+      }
+    });
+    var splitClient = factory.client();
+    splitClient.on(splitClient.Event.SDK_READY, function () {
+      var treatment = splitClient.getTreatment('ai_chat_enabled');
+      if (treatment === 'on') {
+        document.getElementById('ai-chat-widget').style.display = 'block';
+      }
+    });
+
+    var chatOpen = false;
+    function toggleChat() {
+      chatOpen = !chatOpen;
+      document.getElementById('ai-chat-panel').style.display = chatOpen ? 'flex' : 'none';
+    }
+
+    function sendChat() {
+      var input = document.getElementById('ai-chat-input');
+      var message = input.value.trim();
+      if (!message) return;
+
+      var messagesDiv = document.getElementById('ai-chat-messages');
+      messagesDiv.innerHTML += '<div class="ai-chat-msg ai-chat-msg-user">' + message.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+      input.value = '';
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      messagesDiv.innerHTML += '<div class="ai-chat-msg ai-chat-msg-bot ai-chat-typing">Thinking...</div>';
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          var typing = messagesDiv.querySelector('.ai-chat-typing');
+          if (typing) typing.remove();
+          var reply = data.reply || data.error || 'No response';
+          messagesDiv.innerHTML += '<div class="ai-chat-msg ai-chat-msg-bot">' + reply.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        })
+        .catch(function () {
+          var typing = messagesDiv.querySelector('.ai-chat-typing');
+          if (typing) typing.remove();
+          messagesDiv.innerHTML += '<div class="ai-chat-msg ai-chat-msg-bot">Sorry, something went wrong.</div>';
+          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+    }
+  </script>
   <script src="/app.js"></script>
 </body>
 </html>
