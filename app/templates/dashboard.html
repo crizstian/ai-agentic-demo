@@ -100,6 +100,112 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
+  <!-- AI Chat Widget — controlled by Split FME flag ai_chat_enabled -->
+  <div id="ai-chat-widget" style="display:none;">
+    <button id="ai-chat-toggle" class="ai-chat-fab" title="AI Assistant">
+      <span class="ai-chat-fab-icon">💬</span>
+    </button>
+    <div id="ai-chat-panel" class="ai-chat-panel">
+      <div class="ai-chat-header">
+        <span class="ai-chat-header-title">AI Banking Assistant</span>
+        <button id="ai-chat-close" class="ai-chat-close">&times;</button>
+      </div>
+      <div id="ai-chat-messages" class="ai-chat-messages">
+        <div class="ai-chat-msg ai-chat-msg-bot">Hello! I'm your AI banking assistant. How can I help you today?</div>
+      </div>
+      <div class="ai-chat-input-wrap">
+        <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask about your accounts..." />
+        <button id="ai-chat-send" class="ai-chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  <script>
+    (function() {
+      var factory = splitio({
+        core: {
+          authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+          key: 'demobank-user'
+        }
+      });
+      var splitClient = factory.client();
+
+      function checkFlag() {
+        var treatment = splitClient.getTreatment('ai_chat_enabled');
+        var widget = document.getElementById('ai-chat-widget');
+        if (treatment === 'on') {
+          widget.style.display = 'block';
+        } else {
+          widget.style.display = 'none';
+        }
+      }
+
+      splitClient.on(splitClient.Event.SDK_READY, checkFlag);
+      splitClient.on(splitClient.Event.SDK_UPDATE, checkFlag);
+
+      var chatPanel = document.getElementById('ai-chat-panel');
+      var chatToggle = document.getElementById('ai-chat-toggle');
+      var chatClose = document.getElementById('ai-chat-close');
+      var chatInput = document.getElementById('ai-chat-input');
+      var chatSend = document.getElementById('ai-chat-send');
+      var chatMessages = document.getElementById('ai-chat-messages');
+
+      chatToggle.addEventListener('click', function() {
+        chatPanel.classList.toggle('open');
+      });
+
+      chatClose.addEventListener('click', function() {
+        chatPanel.classList.remove('open');
+      });
+
+      function sendMessage() {
+        var msg = chatInput.value.trim();
+        if (!msg) return;
+
+        var userDiv = document.createElement('div');
+        userDiv.className = 'ai-chat-msg ai-chat-msg-user';
+        userDiv.textContent = msg;
+        chatMessages.appendChild(userDiv);
+        chatInput.value = '';
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        var loadingDiv = document.createElement('div');
+        loadingDiv.className = 'ai-chat-msg ai-chat-msg-bot ai-chat-loading';
+        loadingDiv.textContent = 'Thinking...';
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: msg})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          loadingDiv.remove();
+          var botDiv = document.createElement('div');
+          botDiv.className = 'ai-chat-msg ai-chat-msg-bot';
+          botDiv.textContent = data.response || data.error || 'No response';
+          chatMessages.appendChild(botDiv);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        })
+        .catch(function() {
+          loadingDiv.remove();
+          var errDiv = document.createElement('div');
+          errDiv.className = 'ai-chat-msg ai-chat-msg-bot';
+          errDiv.textContent = 'Connection error. Please try again.';
+          chatMessages.appendChild(errDiv);
+        });
+      }
+
+      chatSend.addEventListener('click', sendMessage);
+      chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendMessage();
+      });
+    })();
+  </script>
+
   <script src="/app.js"></script>
 </body>
 </html>
