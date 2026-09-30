@@ -495,7 +495,27 @@ EOF
         echo ""
 
         # -----------------------------------------------------------------
-        # 6d. Trigger DemoBank Reset Deploy pipeline (tag 3)
+        # 6d. Clean up stale agent fix branches
+        # -----------------------------------------------------------------
+        echo -e "${CYAN}--- Cleaning stale agent branches ---${NC}"
+        DELETED_BRANCHES=0
+        for pattern in "fix/manifest-remediation" "fix/qa-ui-alignment"; do
+            for branch in $(git -C "$PROJECT_DIR" ls-remote --heads origin "${pattern}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||'); do
+                git -C "$PROJECT_DIR" push origin --delete "$branch" 2>/dev/null && {
+                    print_ok "Deleted  $branch"
+                    ((DELETED_BRANCHES++)) || true
+                } || print_warn "Could not delete $branch"
+            done
+        done
+        if [[ "$DELETED_BRANCHES" -eq 0 ]]; then
+            print_info "No stale agent branches found"
+        else
+            print_ok "Cleaned $DELETED_BRANCHES stale branch(es)"
+        fi
+        echo ""
+
+        # -----------------------------------------------------------------
+        # 6e. Trigger DemoBank Reset Deploy pipeline (tag 3)
         # -----------------------------------------------------------------
         echo -e "${CYAN}--- Triggering DemoBank Reset Deploy (tag $RESET_IMAGE_TAG) ---${NC}"
 
