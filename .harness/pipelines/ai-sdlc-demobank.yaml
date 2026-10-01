@@ -78,52 +78,57 @@ pipeline:
                               when:
                                 stageStatus: Success
                     - parallel:
-                        - step:
-                            type: Agent
-                            name: Change Advisor
-                            identifier: Change_Advisor
-                            spec:
-                              agentName: code_reviewer
-                              agentSettings:
-                                llmConnector: account.harnessAnthropic
-                                mcpConnectors:
-                                  - mcp_harness_cristian
-                                  - mcp_github_cristian
-                                modelName: claude-sonnet-4-6
-                            when:
-                              stageStatus: Success
-                            failureStrategies:
-                              - onFailure:
-                                  errors:
-                                    - AllErrors
-                                  action:
-                                    type: MarkAsSuccess
-                          contextType: Pipeline
-                        - step:
-                            type: Agent
-                            name: Quality Agent
-                            identifier: Quality_Agent
-                            spec:
-                              agentName: ca_code_unit_test_generator
-                              agentSettings:
-                                llmConnector: account.harnessAnthropic
-                                mcpConnectors:
-                                  - mcp_harness_cristian
-                                  - mcp_github_cristian
-                                modelName: claude-sonnet-4-6
-                                maxTurns: 30
-                            when:
-                              stageStatus: Success
-                            failureStrategies:
-                              - onFailure:
-                                  errors:
-                                    - AllErrors
-                                  action:
-                                    type: MarkAsSuccess
-                          contextType: Pipeline
+                        - stepGroup:
+                            name: Worker Agents
+                            identifier: Worker_Agents
+                            steps:
+                              - parallel:
+                                  - step:
+                                      type: Agent
+                                      name: Change Advisor
+                                      identifier: Change_Advisor
+                                      spec:
+                                        agentName: code_reviewer
+                                        agentSettings:
+                                          llmConnector: account.harnessAnthropic
+                                          mcpConnectors:
+                                            - mcp_harness_cristian
+                                            - mcp_github_cristian
+                                          modelName: claude-sonnet-4-6
+                                      when:
+                                        stageStatus: Success
+                                      failureStrategies:
+                                        - onFailure:
+                                            errors:
+                                              - AllErrors
+                                            action:
+                                              type: MarkAsSuccess
+                                    contextType: Pipeline
+                                  - step:
+                                      type: Agent
+                                      name: Quality Agent
+                                      identifier: Quality_Agent
+                                      spec:
+                                        agentName: ca_code_unit_test_generator
+                                        agentSettings:
+                                          llmConnector: account.harnessAnthropic
+                                          mcpConnectors:
+                                            - mcp_harness_cristian
+                                            - mcp_github_cristian
+                                          modelName: claude-sonnet-4-6
+                                          maxTurns: 30
+                                      when:
+                                        stageStatus: Success
+                                      failureStrategies:
+                                        - onFailure:
+                                            errors:
+                                              - AllErrors
+                                            action:
+                                              type: MarkAsSuccess
+                                    contextType: Pipeline
                         - stepGroup:
                             name: Security Scanning and Remediation
-                            identifier: Security_Scanning
+                            identifier: Security_Scanning_and_Remediation
                             steps:
                               - parallel:
                                   - step:
@@ -436,7 +441,7 @@ pipeline:
                     stageStatus: Success
                     condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
           buildIntelligence:
-            enabled: false
+            enabled: true
         variables:
           - name: HARNESS_TOKEN
             type: String
@@ -1080,7 +1085,7 @@ pipeline:
                         errors:
                           - AllErrors
                         action:
-                          type: MarkAsSuccess
+                          type: Ignore
               - step:
                   type: Agent
                   name: QA UI Analyzer
@@ -1102,7 +1107,14 @@ pipeline:
                         errors:
                           - AllErrors
                         action:
-                          type: MarkAsSuccess
+                          type: Retry
+                          spec:
+                            retryCount: 2
+                            retryIntervals:
+                              - 5s
+                            onRetryFailure:
+                              action:
+                                type: MarkAsSuccess
                 contextType: Pipeline
               - step:
                   type: Run
@@ -1152,5 +1164,5 @@ pipeline:
       description: Skip Jira and CAB approval gates (set by fix deploy triggers)
       required: false
       value: <+input>.default("false")
-  fixedInputsOnRerun: true
+  fixedInputsOnRerun: false
   allowStageExecutions: true
