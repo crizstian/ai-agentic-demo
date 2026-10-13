@@ -16,9 +16,9 @@ service:
                 type: Github
                 spec:
                   connectorRef: CristianConnector
-                  repoName: ai-agentic-demo
+                  repoName: <+input>.default("ai-agentic-demo")
                   gitFetchType: Branch
-                  branch: secops/ai-agentic-demo-main
+                  branch: <+input>.default("secops/ai-agentic-demo-main")
                   paths:
                     - deploy/k8s/mcp-financial-data/deployment.yaml
                     - deploy/k8s/mcp-financial-data/service.yaml
@@ -33,7 +33,7 @@ service:
               type: DockerRegistry
               spec:
                 connectorRef: DockerCristian
-                imagePath: crizstian/mcp-financial-data
+                imagePath: <+input>.default("crizstian/mcp-financial-data")
                 tag: <+input>
   tags:
     app: mcp-financial-data
