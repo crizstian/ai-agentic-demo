@@ -171,9 +171,13 @@ Frontend — widget de chat en el dashboard:
   authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
   key: 'demobank-user'}}). Oculto hasta SDK_READY con treatment 'on'.
 
-Commit, push y PR de la branch local secops/ai-agentic-demo hacia la rama destino secops/ai-agentic-demo-main con el Jira ID:
+Commit, push y crea un PR con el Jira ID:
 "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
 donde HD-XXXXXX es el ID real del ticket creado en Paso 0.
+
+**GitHub version:** push a origin, PR de secops/ai-agentic-demo → secops/ai-agentic-demo-main en github.com/crizstian/ai-agentic-demo
+
+**Harness Code version:** push a harness remote, PR de secops/ai-agentic-demo → secops/ai-agentic-demo-main en Harness Code repo ai-agentic-demo
 ```
 
 > **Vulnerabilidades introducidas** (detectadas en Act 3):
