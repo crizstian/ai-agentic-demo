@@ -100,6 +100,104 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
+  <!-- AI Chat Widget — controlled by Split FME flag "ai_chat_enabled" -->
+  <div id="ai-chat-widget" style="display:none;">
+    <button id="ai-chat-toggle" class="ai-chat-fab" title="AI Assistant">
+      <span class="ai-chat-fab-icon">💬</span>
+    </button>
+    <div id="ai-chat-panel" class="ai-chat-panel ai-chat-hidden">
+      <div class="ai-chat-header">
+        <span>DemoBank AI Assistant</span>
+        <button id="ai-chat-close" class="ai-chat-close-btn">&times;</button>
+      </div>
+      <div id="ai-chat-messages" class="ai-chat-messages">
+        <div class="ai-chat-msg ai-chat-msg-bot">Hi! I'm your DemoBank AI assistant. How can I help you today?</div>
+      </div>
+      <div class="ai-chat-input-wrap">
+        <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Ask about your accounts..." />
+        <button id="ai-chat-send" class="ai-chat-send-btn">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split SDK v11 for feature flag -->
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  <script>
+    (function() {
+      var factory = splitio({
+        core: {
+          authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+          key: 'demobank-user'
+        }
+      });
+      var splitClient = factory.client();
+
+      splitClient.on(splitClient.Event.SDK_READY, function() {
+        var treatment = splitClient.getTreatment('ai_chat_enabled');
+        if (treatment === 'on') {
+          document.getElementById('ai-chat-widget').style.display = 'block';
+        }
+      });
+
+      splitClient.on(splitClient.Event.SDK_UPDATE, function() {
+        var treatment = splitClient.getTreatment('ai_chat_enabled');
+        document.getElementById('ai-chat-widget').style.display = treatment === 'on' ? 'block' : 'none';
+      });
+
+      // Chat widget logic
+      var toggle = document.getElementById('ai-chat-toggle');
+      var panel = document.getElementById('ai-chat-panel');
+      var closeBtn = document.getElementById('ai-chat-close');
+      var input = document.getElementById('ai-chat-input');
+      var sendBtn = document.getElementById('ai-chat-send');
+      var messages = document.getElementById('ai-chat-messages');
+
+      toggle.addEventListener('click', function() {
+        panel.classList.toggle('ai-chat-hidden');
+      });
+      closeBtn.addEventListener('click', function() {
+        panel.classList.add('ai-chat-hidden');
+      });
+
+      function addMessage(text, sender) {
+        var div = document.createElement('div');
+        div.className = 'ai-chat-msg ai-chat-msg-' + sender;
+        div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function sendMessage() {
+        var msg = input.value.trim();
+        if (!msg) return;
+        addMessage(msg, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+
+        fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({message: msg})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          addMessage(data.response || data.error || 'No response', 'bot');
+        })
+        .catch(function() {
+          addMessage('Failed to reach AI service.', 'bot');
+        })
+        .finally(function() {
+          sendBtn.disabled = false;
+        });
+      }
+
+      sendBtn.addEventListener('click', sendMessage);
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') sendMessage();
+      });
+    })();
+  </script>
+
   <script src="/app.js"></script>
 </body>
 </html>
