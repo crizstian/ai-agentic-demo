@@ -45,13 +45,16 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DB_PATH="${DB_PATH:-$PROJECT_DIR/demobank.db}"
 
 # Source branch for clean app files
-SOURCE_BRANCH="main"
+SOURCE_BRANCH="${DEMO_SOURCE_BRANCH:-main}"
 # Target branch that receives PRs — synced to same commit to avoid conflicts
-TARGET_BRANCH="secops/ai-agentic-demo-main"
+TARGET_BRANCH="${DEMO_TARGET_BRANCH:-secops/ai-agentic-demo-main}"
 # Stable deploy branch — configmap has OPENAI_API_KEY (no CreateContainerConfigError)
-DEPLOY_BRANCH="secops/ai-agentic-demo-deploy"
+DEPLOY_BRANCH="${DEMO_DEPLOY_BRANCH:-secops/ai-agentic-demo-deploy}"
 # Reset deploy images
-RESET_IMAGE_TAG="3"
+RESET_IMAGE_TAG="${DEMO_IMAGE_TAG:-3}"
+# Docker image names (for log messages)
+APP_IMAGE="${DEMO_APP_IMAGE:-crizstian/harnessbank-demo}"
+MCP_IMAGE="${DEMO_MCP_IMAGE:-crizstian/mcp-financial-data}"
 
 RESET_DB=false
 DO_COMMIT=false
@@ -107,7 +110,7 @@ CURRENT_BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD)
 print_info "Current branch: $CURRENT_BRANCH"
 
 if [[ "$CURRENT_BRANCH" == "$SOURCE_BRANCH" ]]; then
-    print_fail "Already on $SOURCE_BRANCH — switch to secops/ai-agentic-demo first"
+    print_fail "Already on $SOURCE_BRANCH — switch to your working branch first"
     exit 1
 fi
 
@@ -527,7 +530,7 @@ EOF
 
         if echo "$RESPONSE" | grep -q "SUCCESS\|eventCorrelationId"; then
             print_ok "DemoBank Reset Deploy triggered"
-            print_info "Deploying crizstian/harnessbank-demo:$RESET_IMAGE_TAG + crizstian/mcp-financial-data:$RESET_IMAGE_TAG"
+            print_info "Deploying $APP_IMAGE:$RESET_IMAGE_TAG + $MCP_IMAGE:$RESET_IMAGE_TAG"
             print_info "Manifests from: $DEPLOY_BRANCH (stable configmap)"
         else
             print_fail "Failed to trigger pipeline"

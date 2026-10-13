@@ -8,7 +8,7 @@ pipeline:
     ci:
       codebase:
         connectorRef: CristianConnector
-        repoName: ai-agentic-demo
+        repoName: <+pipeline.variables.repoName>
         build: <+input>
         sparseCheckout: []
   stages:
@@ -221,7 +221,7 @@ pipeline:
                             fi
                             echo "Token present (${#GIT_TOKEN} chars)"
 
-                            git remote set-url origin "https://github.com/crizstian/ai-agentic-demo.git"
+                            git remote set-url origin "<+codebase.repoUrl>"
                             printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
                             git config credential.helper 'store --file=/tmp/.git-creds'
 
@@ -270,7 +270,7 @@ pipeline:
                             identifier: Build_DemoBank
                             spec:
                               connectorRef: DockerCristian
-                              repo: docker.io/crizstian/harnessbank-demo
+                              repo: docker.io/<+pipeline.variables.appImage>
                               tags:
                                 - latest
                                 - <+pipeline.sequenceId>
@@ -283,7 +283,7 @@ pipeline:
                             identifier: Build_MCP
                             spec:
                               connectorRef: DockerCristian
-                              repo: docker.io/crizstian/mcp-financial-data
+                              repo: docker.io/<+pipeline.variables.mcpImage>
                               tags:
                                 - latest
                                 - <+pipeline.sequenceId>
@@ -306,7 +306,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -330,7 +330,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -349,7 +349,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  repo: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  repo: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -367,7 +367,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  repo: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  repo: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
                               attestation:
                                 type: keyless
                                 spec:
@@ -385,7 +385,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/harnessbank-demo:<+pipeline.sequenceId>
+                                  image: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
                               signing:
                                 type: keyless
                                 spec:
@@ -403,7 +403,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.sequenceId>
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
                               signing:
                                 type: keyless
                                 spec:
@@ -414,7 +414,7 @@ pipeline:
                                   cpu: "0.5"
                   when:
                     stageStatus: Success
-                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
               - step:
                   type: Run
                   name: AI SRE Build Notification
@@ -424,12 +424,12 @@ pipeline:
                     command: |-
                       #!/bin/bash
                       json_payload="{\
-                      \"artifact\": {\"name\": \"docker.io/docker.io/crizstian/harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                      \"artifact\": {\"name\": \"docker.io/<+pipeline.variables.appImage>\", \"version\": \"<+pipeline.sequenceId>\"}, \
                       \"source\": {\
                       \"commitSha\": \"<+codebase.commitSha>\", \
                       \"kind\": \"branch\", \
                       \"value\": \"<+codebase.branch>\", \
-                      \"repository_url\": \"https://github.com/crizstian/ai-agentic-demo\"}, \
+                      \"repository_url\": \"<+codebase.repoUrl>\"}, \
                       \"service\": {\"name\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
                       \"buildId\": \"<+pipeline.executionId>\"}"
 
@@ -439,7 +439,7 @@ pipeline:
                         -d "$json_payload"
                   when:
                     stageStatus: Success
-                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
           buildIntelligence:
             enabled: true
         variables:
@@ -469,13 +469,15 @@ pipeline:
                           store:
                             type: Github
                             spec:
-                              branch: secops/ai-agentic-demo-main
+                              repoName: <+pipeline.variables.repoName>
+                              branch: <+pipeline.variables.defaultBranch>
                   artifacts:
                     primary:
                       sources:
                         - identifier: demobank_image
                           type: DockerRegistry
                           spec:
+                            imagePath: <+pipeline.variables.appImage>
                             tag: <+pipeline.variables.imageTag>
           environment:
             environmentRef: gke_latam
@@ -499,7 +501,7 @@ pipeline:
                                     type: docker
                                     spec:
                                       connector: DockerCristian
-                                      image: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
+                                      image: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
                                   verifyAttestation:
                                     type: keyless
                                     spec:
@@ -520,7 +522,7 @@ pipeline:
                                     type: Docker
                                     spec:
                                       connector: DockerCristian
-                                      image_path: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
+                                      image_path: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
                                   verify_attestation:
                                     type: keyless
                                     spec:
@@ -538,7 +540,7 @@ pipeline:
                                     type: docker
                                     spec:
                                       connector: DockerCristian
-                                      image: docker.io/crizstian/harnessbank-demo:<+pipeline.variables.imageTag>
+                                      image: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
                                   verifySign:
                                     type: keyless
                                     spec:
@@ -752,7 +754,7 @@ pipeline:
                 type: StageRollback
         when:
           pipelineStatus: Success
-          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
     - stage:
         name: Deploy MCP Financial Data
         identifier: Deploy_MCP
@@ -774,13 +776,15 @@ pipeline:
                           store:
                             type: Github
                             spec:
-                              branch: secops/ai-agentic-demo-main
+                              repoName: <+pipeline.variables.repoName>
+                              branch: <+pipeline.variables.defaultBranch>
                   artifacts:
                     primary:
                       sources:
                         - identifier: mcp_financial_data_image
                           type: DockerRegistry
                           spec:
+                            imagePath: <+pipeline.variables.mcpImage>
                             tag: <+pipeline.variables.imageTag>
           environment:
             useFromStage:
@@ -801,7 +805,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
                               verifyAttestation:
                                 type: keyless
                                 spec:
@@ -822,7 +826,7 @@ pipeline:
                                 type: Docker
                                 spec:
                                   connector: DockerCristian
-                                  image_path: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
+                                  image_path: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
                               verify_attestation:
                                 type: keyless
                                 spec:
@@ -840,7 +844,7 @@ pipeline:
                                 type: docker
                                 spec:
                                   connector: DockerCristian
-                                  image: docker.io/crizstian/mcp-financial-data:<+pipeline.variables.imageTag>
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
                               verifySign:
                                 type: keyless
                                 spec:
@@ -1008,7 +1012,7 @@ pipeline:
                 type: StageRollback
         when:
           pipelineStatus: Success
-          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
     - stage:
         name: QA Tests
         identifier: External_Traffic
@@ -1152,7 +1156,7 @@ pipeline:
             paths: []
         when:
           pipelineStatus: Success
-          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "secops/ai-agentic-demo-main")
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
   variables:
     - name: imageTag
       type: String
@@ -1164,5 +1168,25 @@ pipeline:
       description: Skip Jira and CAB approval gates (set by fix deploy triggers)
       required: false
       value: <+input>.default("false")
+    - name: repoName
+      type: String
+      description: GitHub repository name (as configured in codebase connector)
+      required: false
+      value: <+input>.default("ai-agentic-demo")
+    - name: defaultBranch
+      type: String
+      description: Default branch for deployments and manifest fetching
+      required: false
+      value: <+input>.default("secops/ai-agentic-demo-main")
+    - name: appImage
+      type: String
+      description: Docker image path for main application (owner/image)
+      required: false
+      value: <+input>.default("crizstian/harnessbank-demo")
+    - name: mcpImage
+      type: String
+      description: Docker image path for MCP Financial Data service (owner/image)
+      required: false
+      value: <+input>.default("crizstian/mcp-financial-data")
   fixedInputsOnRerun: false
   allowStageExecutions: true

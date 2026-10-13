@@ -28,11 +28,11 @@ spec:
 
     spec:
       nodeSelector:
-        scope: ai-agentic-demo
+        scope: {{ .Values.nodeScope }}
       tolerations:
         - key: dedicated
           operator: Equal
-          value: ai_agentic_demo_space
+          value: {{ .Values.tolerationValue }}
           effect: NoSchedule
       containers:
         - name: {{ .Values.name }}

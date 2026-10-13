@@ -1,0 +1,1191 @@
+pipeline:
+  projectIdentifier: CristianRamirez
+  orgIdentifier: sandbox
+  identifier: AI_SDLC_DemoBank_HC
+  name: AI SDLC DemoBank - Harness Code
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        repoName: <+pipeline.variables.repoName>
+        build: <+input>
+        sparseCheckout: []
+  stages:
+    - stage:
+        name: Build
+        identifier: CI
+        description: "Acts 2-3: PR validation (lint, tests, AI review, security scan) and main branch build (SBOM, Docker push)"
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: true
+            paths: []
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - stepGroup:
+                  name: PR Validation
+                  identifier: PR_Pipeline
+                  when:
+                    stageStatus: Success
+                    condition: <+trigger.event> == "PR"
+                  steps:
+                    - stepGroup:
+                        name: Build Validation
+                        identifier: Build_Validation
+                        steps:
+                          - step:
+                              type: Run
+                              name: Build and Lint
+                              identifier: Build_and_Lint
+                              spec:
+                                shell: Sh
+                                command: |-
+                                  set -eu
+                                  echo "Branch: <+codebase.branch>"
+                                  echo "PR Title: <+trigger.prTitle>"
+                                  pip install --quiet -r requirements.txt
+                                  python -m py_compile app/server.py
+                                  echo "Build validation passed"
+                          - step:
+                              type: Test
+                              name: Test Intelligence
+                              identifier: Test_Intelligence
+                              spec:
+                                shell: Sh
+                                command: |-
+                                  pip install -r requirements-dev.txt
+                                  pytest --junitxml=test-results/junit.xml
+                                reports:
+                                  type: JUnit
+                                  spec:
+                                    paths:
+                                      - test-results/junit.xml
+                                intelligenceMode: true
+                              failureStrategies:
+                                - onFailure:
+                                    errors:
+                                      - AllErrors
+                                    action:
+                                      type: MarkAsSuccess
+                              when:
+                                stageStatus: Success
+                    - parallel:
+                        - stepGroup:
+                            name: Worker Agents
+                            identifier: Worker_Agents
+                            steps:
+                              - parallel:
+                                  - step:
+                                      type: Agent
+                                      name: Change Advisor
+                                      identifier: Change_Advisor
+                                      spec:
+                                        agentName: code_reviewer
+                                        agentSettings:
+                                          llmConnector: account.harnessAnthropic
+                                          mcpConnectors:
+                                            - mcp_harness_cristian
+                                            - mcp_github_cristian
+                                          modelName: claude-sonnet-4-6
+                                      when:
+                                        stageStatus: Success
+                                      failureStrategies:
+                                        - onFailure:
+                                            errors:
+                                              - AllErrors
+                                            action:
+                                              type: MarkAsSuccess
+                                    contextType: Pipeline
+                                  - step:
+                                      type: Agent
+                                      name: Quality Agent
+                                      identifier: Quality_Agent
+                                      spec:
+                                        agentName: ca_code_unit_test_generator
+                                        agentSettings:
+                                          llmConnector: account.harnessAnthropic
+                                          mcpConnectors:
+                                            - mcp_harness_cristian
+                                            - mcp_github_cristian
+                                          modelName: claude-sonnet-4-6
+                                          maxTurns: 30
+                                      when:
+                                        stageStatus: Success
+                                      failureStrategies:
+                                        - onFailure:
+                                            errors:
+                                              - AllErrors
+                                            action:
+                                              type: MarkAsSuccess
+                                    contextType: Pipeline
+                        - stepGroup:
+                            name: Security Scanning and Remediation
+                            identifier: Security_Scanning_and_Remediation
+                            steps:
+                              - parallel:
+                                  - step:
+                                      type: Gitleaks
+                                      name: Secrets Detection
+                                      identifier: Secrets_Detection
+                                      spec:
+                                        mode: orchestration
+                                        config: default
+                                        target:
+                                          type: repository
+                                          detection: auto
+                                        advanced:
+                                          log:
+                                            level: info
+                                  - step:
+                                      type: HarnessSAST
+                                      name: Harness SCA
+                                      identifier: Harness_SCA
+                                      spec:
+                                        mode: orchestration
+                                        config: sca
+                                        target:
+                                          type: repository
+                                          detection: auto
+                                        advanced:
+                                          log:
+                                            level: info
+                                  - step:
+                                      type: Semgrep
+                                      name: Semgrep_SAST
+                                      identifier: Semgrep_SAST
+                                      spec:
+                                        mode: orchestration
+                                        config: default
+                                        target:
+                                          type: repository
+                                          workspace: app/
+                                          detection: auto
+                                        advanced:
+                                          log:
+                                            level: info
+                              - step:
+                                  type: Agent
+                                  name: Security Remediator
+                                  identifier: Security_Remediator
+                                  spec:
+                                    agentName: security_analyzer
+                                    agentSettings:
+                                      llmConnector: account.harnessAnthropic
+                                      mcpConnectors:
+                                        - mcp_harness_cristian
+                                        - mcp_github_cristian
+                                      modelName: claude-sonnet-4-6
+                                  when:
+                                    stageStatus: Success
+                                    condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
+                                contextType: Pipeline
+                    - step:
+                        type: Run
+                        name: Apply Fixes
+                        identifier: Apply_Fixes
+                        spec:
+                          shell: Bash
+                          command: |-
+                            #!/bin/bash
+                            set -euo pipefail
+
+                            echo "=== Apply Fixes — Checking for agent changes ==="
+
+                            git add tests/ app/ requirements*.txt 2>/dev/null || true
+
+                            if git diff --cached --quiet; then
+                              echo "No agent changes detected — clean pass"
+                              exit 0
+                            fi
+
+                            echo "=== Changes staged from AI agents ==="
+                            git diff --cached --stat
+                            echo ""
+
+                            SOURCE_BRANCH="<+trigger.sourceBranch>"
+
+                            git config user.email "harness-ai-agent@harness.io"
+                            git config user.name "Harness AI Agent"
+
+                            if [ -z "${GIT_TOKEN:-}" ]; then
+                              echo "ERROR: GIT_TOKEN is empty — cannot push"
+                              exit 1
+                            fi
+                            echo "Token present (${#GIT_TOKEN} chars)"
+
+                            git remote set-url origin "<+codebase.repoUrl>"
+                            printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
+                            git config credential.helper 'store --file=/tmp/.git-creds'
+
+                            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                            if [ "$CURRENT_BRANCH" = "HEAD" ]; then
+                              echo "Detached HEAD — switching to $SOURCE_BRANCH"
+                              git stash
+                              git fetch origin "$SOURCE_BRANCH"
+                              git checkout -B "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
+                              git stash pop
+                              git add tests/ app/ requirements*.txt 2>/dev/null || true
+                            fi
+
+                            git commit -m "fix: AI agent auto-remediation — tests + security fixes"
+                            #git push origin HEAD:"$SOURCE_BRANCH"
+
+                            echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
+                          envVariables:
+                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
+                        when:
+                          stageStatus: Success
+              - stepGroup:
+                  name: Build and Supply Chain
+                  identifier: Supply_Chain_Governance
+                  steps:
+                    - step:
+                        type: Run
+                        name: Extract Jira ID
+                        identifier: Extract_Jira_ID
+                        spec:
+                          shell: Bash
+                          command: |
+                            JIRA_ID=$(echo "<+codebase.commitMessage>" | grep -oP '[A-Z]+-\d+' | head -1)
+                            if [ -z "$JIRA_ID" ]; then
+                              JIRA_ID="NONE"
+                              echo "No Jira ID found in commit message"
+                            else
+                              echo "Jira ticket: $JIRA_ID"
+                            fi
+                          outputVariables:
+                            - name: JIRA_ID
+                    - parallel:
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: Build DemoBank Image
+                            identifier: Build_DemoBank
+                            spec:
+                              connectorRef: DockerCristian
+                              repo: docker.io/<+pipeline.variables.appImage>
+                              tags:
+                                - latest
+                                - <+pipeline.sequenceId>
+                              caching: true
+                              dockerfile: Dockerfile
+                          contextType: Pipeline
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: Build MCP Financial Data
+                            identifier: Build_MCP
+                            spec:
+                              connectorRef: DockerCristian
+                              repo: docker.io/<+pipeline.variables.mcpImage>
+                              tags:
+                                - latest
+                                - <+pipeline.sequenceId>
+                              caching: true
+                              dockerfile: services/mcp-financial-data/Dockerfile
+                              context: services/mcp-financial-data
+                          contextType: Pipeline
+                    - parallel:
+                        - step:
+                            type: SscaOrchestration
+                            name: SBOM DemoBank
+                            identifier: SBOM_DemoBank
+                            spec:
+                              mode: generation
+                              tool:
+                                type: cdxgen
+                                spec:
+                                  format: cyclonedx-json
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                          contextType: Pipeline
+                        - step:
+                            type: SscaOrchestration
+                            name: SBOM MCP Financial Data
+                            identifier: SBOM_MCP
+                            spec:
+                              mode: generation
+                              tool:
+                                type: cdxgen
+                                spec:
+                                  format: cyclonedx-json
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                          contextType: Pipeline
+                        - step:
+                            type: provenance
+                            name: SLSA DemoBank
+                            identifier: SLSA_DemoBank
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  repo: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: provenance
+                            name: SLSA MCP Financial
+                            identifier: SLSA_MCP_Financial
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  repo: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactSigning
+                            name: Artifact DemoBank
+                            identifier: Artifact_DemoBank
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.appImage>:<+pipeline.sequenceId>
+                              signing:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactSigning
+                            name: Artifact MCP Financial
+                            identifier: Artifact_MCP_Financial
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
+                              signing:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                  when:
+                    stageStatus: Success
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+              - step:
+                  type: Run
+                  name: AI SRE Build Notification
+                  identifier: AISRE_Build_Notification
+                  spec:
+                    shell: Sh
+                    command: |-
+                      #!/bin/bash
+                      json_payload="{\
+                      \"artifact\": {\"name\": \"docker.io/<+pipeline.variables.appImage>\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                      \"source\": {\
+                      \"commitSha\": \"<+codebase.commitSha>\", \
+                      \"kind\": \"branch\", \
+                      \"value\": \"<+codebase.branch>\", \
+                      \"repository_url\": \"<+codebase.repoUrl>\"}, \
+                      \"service\": {\"name\": \"harnessbank-demo\", \"version\": \"<+pipeline.sequenceId>\"}, \
+                      \"buildId\": \"<+pipeline.executionId>\"}"
+
+                      curl '<+secrets.getValue("aisre_build_webhook_url")>' \
+                        -s \
+                        -H 'Content-Type: application/json' \
+                        -d "$json_payload"
+                  when:
+                    stageStatus: Success
+                    condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+          buildIntelligence:
+            enabled: true
+        variables:
+          - name: HARNESS_TOKEN
+            type: String
+            description: ""
+            required: false
+            value: <+secrets.getValue("harnessToken")>
+    - stage:
+        name: Deploy DemoBank
+        identifier: Deploy_DemoBank
+        description: "Act 4: Governed canary deployment"
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: demobank
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  manifests:
+                    - manifest:
+                        identifier: demobank_manifests
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              repoName: <+pipeline.variables.repoName>
+                              branch: <+pipeline.variables.defaultBranch>
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: demobank_image
+                          type: DockerRegistry
+                          spec:
+                            imagePath: <+pipeline.variables.appImage>
+                            tag: <+pipeline.variables.imageTag>
+          environment:
+            environmentRef: gke_latam
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: latam_nodepool
+          execution:
+            steps:
+              - parallel:
+                  - stepGroup:
+                      name: Supply Chain
+                      identifier: Supply_Chain
+                      steps:
+                        - parallel:
+                            - step:
+                                type: SscaEnforcement
+                                name: SBOM DemoBank
+                                identifier: SBOM_DemoBank
+                                spec:
+                                  source:
+                                    type: docker
+                                    spec:
+                                      connector: DockerCristian
+                                      image: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
+                                  verifyAttestation:
+                                    type: keyless
+                                    spec:
+                                      oidcProvider: harness
+                                  policy:
+                                    policySets:
+                                      - SSCA
+                                  resources:
+                                    limits:
+                                      memory: 500Mi
+                                      cpu: "0.5"
+                            - step:
+                                type: SlsaVerification
+                                name: SLSA Verification
+                                identifier: SLSA_Verification
+                                spec:
+                                  source:
+                                    type: Docker
+                                    spec:
+                                      connector: DockerCristian
+                                      image_path: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
+                                  verify_attestation:
+                                    type: keyless
+                                    spec:
+                                      oidcProvider: harness
+                                  resources:
+                                    limits:
+                                      memory: 500Mi
+                                      cpu: "0.5"
+                            - step:
+                                type: SscaArtifactVerification
+                                name: Artifact Verification
+                                identifier: Artifact_Verification
+                                spec:
+                                  source:
+                                    type: docker
+                                    spec:
+                                      connector: DockerCristian
+                                      image: docker.io/<+pipeline.variables.appImage>:<+pipeline.variables.imageTag>
+                                  verifySign:
+                                    type: keyless
+                                    spec:
+                                      oidcProvider: harness
+                                  resources:
+                                    limits:
+                                      memory: 500Mi
+                                      cpu: "0.5"
+                      stepGroupInfra:
+                        type: KubernetesDirect
+                        spec:
+                          connectorRef: org.se_sandbox_k8s
+                  - step:
+                      type: JiraUpdate
+                      name: ITSM Deployment Started
+                      identifier: Jira_Deploying
+                      spec:
+                        connectorRef: account.Harness_JIRA
+                        issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                        transitionTo:
+                          status: In Progress
+                        fields:
+                          - name: Comment
+                            value: "Deployment started to GKE (canary). Pipeline: <+pipeline.executionUrl>"
+                      timeout: 1m
+                      when:
+                        stageStatus: Success
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
+              - stepGroup:
+                  name: Canary Deployment
+                  identifier: canaryDeployment
+                  steps:
+                    - step:
+                        type: K8sCanaryDeploy
+                        name: Canary Deployment
+                        identifier: Canary_Deployment
+                        spec:
+                          skipDryRun: false
+                          instanceSelection:
+                            type: Count
+                            spec:
+                              count: 2
+                        timeout: 10m
+                    - step:
+                        type: Http
+                        name: Portal Healthcheck
+                        identifier: Portal_Healthcheck
+                        spec:
+                          url: http://demobank-e2e.selatam.harness-demo.site
+                          method: GET
+                          headers: []
+                          inputVariables: []
+                          outputVariables: []
+                        timeout: 10s
+                        failureStrategies:
+                          - onFailure:
+                              errors:
+                                - AllErrors
+                              action:
+                                type: Retry
+                                spec:
+                                  retryCount: 3
+                                  onRetryFailure:
+                                    action:
+                                      type: MarkAsSuccess
+                                  condition: ""
+                                  retryIntervals:
+                                    - 3s
+                    - step:
+                        name: Canary Delete
+                        identifier: canaryDelete
+                        type: K8sCanaryDelete
+                        timeout: 10m
+                        spec: {}
+                      contextType: Pipeline
+              - step:
+                  type: JiraApproval
+                  name: CAB Approval Gate
+                  identifier: Jira_CAB_Approval
+                  spec:
+                    connectorRef: account.Harness_JIRA
+                    issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                    approvalCriteria:
+                      type: KeyValues
+                      spec:
+                        matchAnyCondition: true
+                        conditions:
+                          - key: Status
+                            operator: in
+                            value: Approved,Done
+                    rejectionCriteria:
+                      type: KeyValues
+                      spec:
+                        matchAnyCondition: true
+                        conditions:
+                          - key: Status
+                            operator: in
+                            value: Rejected
+                  timeout: 15m
+                  when:
+                    stageStatus: Success
+                    condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
+              - stepGroup:
+                  name: Primary Deployment
+                  identifier: primaryDeployment
+                  steps:
+                    - step:
+                        name: Rolling Deployment
+                        identifier: rollingDeployment
+                        type: K8sRollingDeploy
+                        timeout: 10m
+                        spec:
+                          skipDryRun: false
+              - parallel:
+                  - step:
+                      type: JiraUpdate
+                      name: ITSM Deployment Complete
+                      identifier: Jira_Deployed
+                      spec:
+                        connectorRef: account.Harness_JIRA
+                        issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                        transitionTo:
+                          status: Done
+                        fields:
+                          - name: Comment
+                            value: "Deployment successful. Version: <+pipeline.variables.imageTag>. Environment: GKE LATAM."
+                      timeout: 1m
+                      when:
+                        stageStatus: Success
+                        condition: <+pipeline.stages.CI.status> == "SUCCEEDED" && <+pipeline.variables.skipApproval> != "true"
+                  - step:
+                      type: ShellScript
+                      name: AI SRE Deploy Notification
+                      identifier: AISRE_Deploy_Notification
+                      spec:
+                        shell: Bash
+                        source:
+                          type: Inline
+                          spec:
+                            script: |-
+                              #!/bin/bash
+                              json_payload="{\
+                              \"services\": [\
+                              {\"service\": \"harnessbank-demo\", \"version\": \"<+pipeline.variables.imageTag>\"}, \
+                              {\"service\": \"mcp-financial-data\", \"version\": \"<+pipeline.variables.imageTag>\"}], \
+                              \"environments\": [\"gke-latam\"], \
+                              \"changeId\": \"<+pipeline.executionId>\", \
+                              \"status\": \"SUCCESS\", \
+                              \"deployedBy\": \"<+pipeline.triggeredBy.name>\", \
+                              \"deployTimestamp\": \"<+pipeline.startTs>\"}"
+
+                              curl '<+secrets.getValue("aisre_deploy_webhook_url")>' \
+                                -s \
+                                -H 'Content-Type: application/json' \
+                                -d "$json_payload"
+                      timeout: 1m
+            rollbackSteps:
+              - step:
+                  name: Canary Delete
+                  identifier: rollbackCanaryDelete
+                  type: K8sCanaryDelete
+                  timeout: 10m
+                  spec: {}
+              - step:
+                  type: JiraUpdate
+                  name: ITSM Deployment Failed
+                  identifier: Jira_Failed
+                  spec:
+                    connectorRef: account.Harness_JIRA
+                    issueKey: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+                    transitionTo:
+                      transitionName: ""
+                      status: Rejected
+                    fields:
+                      - name: Comment
+                        value: "DEPLOYMENT FAILED — rollback executed. Stage: Deploy_DemoBank. Execution: <+pipeline.executionUrl>"
+                  timeout: 1m
+                  when:
+                    stageStatus: All
+              - step:
+                  type: ShellScript
+                  name: Trigger AI Remediation
+                  identifier: Trigger_AI_Remediation
+                  spec:
+                    shell: Bash
+                    executionTarget: {}
+                    source:
+                      type: Inline
+                      spec:
+                        script: |-
+                          curl -X POST -H 'content-type: application/json' \
+                            --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
+                            -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>"}'
+                    environmentVariables: []
+                    outputVariables: []
+                  timeout: 1m
+                  when:
+                    stageStatus: All
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+    - stage:
+        name: Deploy MCP Financial Data
+        identifier: Deploy_MCP
+        description: Deploy East-West traffic service for Traceable demo
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: mcp_financial_data
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  manifests:
+                    - manifest:
+                        identifier: mcp_financial_data_manifests
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              repoName: <+pipeline.variables.repoName>
+                              branch: <+pipeline.variables.defaultBranch>
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: mcp_financial_data_image
+                          type: DockerRegistry
+                          spec:
+                            imagePath: <+pipeline.variables.mcpImage>
+                            tag: <+pipeline.variables.imageTag>
+          environment:
+            useFromStage:
+              stage: Deploy_DemoBank
+          execution:
+            steps:
+              - stepGroup:
+                  name: Supply Chain
+                  identifier: Supply_Chain
+                  steps:
+                    - parallel:
+                        - step:
+                            type: SscaEnforcement
+                            name: SBOM DemoBank
+                            identifier: SBOM_DemoBank
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
+                              verifyAttestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              policy:
+                                policySets:
+                                  - SSCA
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SlsaVerification
+                            name: SLSA Verification
+                            identifier: SLSA_Verification
+                            spec:
+                              source:
+                                type: Docker
+                                spec:
+                                  connector: DockerCristian
+                                  image_path: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
+                              verify_attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactVerification
+                            name: Artifact Verification
+                            identifier: Artifact_Verification
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.variables.imageTag>
+                              verifySign:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                  stepGroupInfra:
+                    type: KubernetesDirect
+                    spec:
+                      connectorRef: org.se_sandbox_k8s
+              - step:
+                  name: Rolling Deployment
+                  identifier: rollingDeployment
+                  type: K8sRollingDeploy
+                  timeout: 10m
+                  spec:
+                    skipDryRun: false
+              - stepGroup:
+                  name: Feature Flags
+                  identifier: Feature_Flags
+                  steps:
+                    - parallel:
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable QA Testers Frontend
+                            identifier: Enable_QA_Testers_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - QA_Testers
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable QA Testers Backend
+                            identifier: Enable_QA_Testers_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - QA_Testers
+                    - parallel:
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable Beta Testers Frontend
+                            identifier: Enable_Beta_Testers_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - Beta_Users
+                        - step:
+                            type: FmeFlagSetIndividualTargets
+                            name: Enable Beta Testers Backend
+                            identifier: Enable_Beta_Testers_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              treatments:
+                                - treatment: "on"
+                                  keys: []
+                                  segments:
+                                    - Beta_Users
+                      contextType: Pipeline
+                    - parallel:
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: GA Rollout Frontend
+                            identifier: GA_Rollout_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 90
+                                - treatment: "off"
+                                  amount: 10
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: GA Rollout Backend
+                            identifier: GA_Rollout_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 90
+                                - treatment: "off"
+                                  amount: 10
+                      contextType: Pipeline
+                    - parallel:
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: Full Rollout Frontend
+                            identifier: Full_Rollout_Frontend
+                            spec:
+                              flagName: ai_chat_enabled
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 100
+                                - treatment: "off"
+                                  amount: 0
+                        - step:
+                            type: FmeFlagDefaultAllocation
+                            name: Full Rollout Backend
+                            identifier: Full_Rollout_Backend
+                            spec:
+                              flagName: ai_chat_backend
+                              environment: Prod
+                              allocation:
+                                - treatment: "on"
+                                  amount: 100
+                                - treatment: "off"
+                                  amount: 0
+                      contextType: Pipeline
+            rollbackSteps:
+              - parallel:
+                  - step:
+                      name: Disable Frontend Flag
+                      identifier: disableFrontendFlag
+                      type: FmeFlagDefaultAllocation
+                      spec:
+                        flagName: ai_chat_enabled
+                        environment: Prod
+                        allocation:
+                          - treatment: "on"
+                            amount: 0
+                          - treatment: "off"
+                            amount: 100
+                  - step:
+                      name: Disable Backend Flag
+                      identifier: disableBackendFlag
+                      type: FmeFlagDefaultAllocation
+                      spec:
+                        flagName: ai_chat_backend
+                        environment: Prod
+                        allocation:
+                          - treatment: "on"
+                            amount: 0
+                          - treatment: "off"
+                            amount: 100
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+    - stage:
+        name: QA Tests
+        identifier: External_Traffic
+        description: Generate N-S traffic from Harness Cloud for Traceable API discovery and baseline learning
+        type: CI
+        spec:
+          cloneCodebase: true
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: UI Alignment Test
+                  identifier: UI_Alignment_Test
+                  spec:
+                    image: mcr.microsoft.com/playwright:v1.48.0-noble
+                    shell: Bash
+                    command: |-
+                      #!/bin/bash
+                      set -euo pipefail
+                      echo "=== Running Playwright UI alignment checks ==="
+
+                      cd tests/e2e
+                      npm install --silent 2>&1 | tail -3
+                      npx playwright test ui-alignment.spec.js --config=playwright.config.js 2>&1 || true
+                      cd ../..
+
+                      if [ ! -s /tmp/pw-results.json ]; then
+                        echo "WARNING: Playwright produced no JSON output"
+                        DEFECTS="NONE"
+                        FILES="NONE"
+                      else
+                        FAILURES=$(node -e "
+                          const r = JSON.parse(require('fs').readFileSync('/tmp/pw-results.json','utf8'));
+                          function collectSpecs(suites) {
+                            let specs = [];
+                            for (const s of suites || []) {
+                              specs.push(...(s.specs || []));
+                              specs.push(...collectSpecs(s.suites));
+                            }
+                            return specs;
+                          }
+                          const fails = collectSpecs(r.suites).filter(s => s.ok === false);
+                          const msgs = fails.map(f => f.title + ': ' + (f.tests[0]?.results[0]?.error?.message||'failed').split('\n')[0]);
+                          console.log(msgs.join(' | '));
+                        ")
+
+                        if [ -z "$FAILURES" ]; then
+                          echo "All UI checks passed"
+                          DEFECTS="NONE"
+                          FILES="NONE"
+                        else
+                          echo "UI DEFECTS FOUND: $FAILURES"
+                          DEFECTS="$FAILURES"
+                          FILES="app/static/styles.css, app/templates/dashboard.html"
+                        fi
+                      fi
+                    envVariables:
+                      BASE_URL: http://demobank-e2e.selatam.harness-demo.site
+                    outputVariables:
+                      - name: DEFECTS
+                        type: String
+                        value: DEFECTS
+                      - name: FILES
+                        type: String
+                        value: FILES
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: Ignore
+              - step:
+                  type: Agent
+                  name: QA UI Analyzer
+                  identifier: QA_UI_Analyzer
+                  spec:
+                    agentName: qa_ui_analyzer
+                    agentSettings:
+                      llmConnector: account.harnessAnthropic
+                      mcpConnectors:
+                        - mcp_harness_cristian
+                        - mcp_github_cristian
+                      modelName: claude-sonnet-4-6
+                      maxTurns: 25
+                  when:
+                    stageStatus: Success
+                    condition: <+execution.steps.UI_Alignment_Test.output.outputVariables.DEFECTS> != "NONE"
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: Retry
+                          spec:
+                            retryCount: 2
+                            retryIntervals:
+                              - 5s
+                            onRetryFailure:
+                              action:
+                                type: MarkAsSuccess
+                contextType: Pipeline
+              - step:
+                  type: Run
+                  name: Generate N-S Traffic
+                  identifier: Generate_NS_Traffic
+                  spec:
+                    shell: Sh
+                    command: |-
+                      npm install -g newman --silent
+                      BASE_URL="http://demobank-e2e.selatam.harness-demo.site"
+
+                      echo "=== Generating external N-S traffic for Traceable API baseline ==="
+                      echo "Source: Harness Cloud (public IP) -> Ingress -> DemoBank"
+                      echo "Target: $BASE_URL"
+
+                      for i in $(seq 1 10); do
+                        echo "--- Cycle $i/10 ---"
+                        newman run deploy/k8s/newman-traffic/collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        newman run deploy/k8s/newman-traffic/ai-collection.json \
+                          --env-var "baseUrl=$BASE_URL" \
+                          --timeout-request 10000 \
+                          --suppress-exit-code || true
+
+                        sleep 5
+                      done
+                      echo "=== External traffic generation complete: 10 cycles x 35 requests = 350 N-S requests ==="
+          buildIntelligence:
+            enabled: false
+          caching:
+            enabled: false
+            paths: []
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+  variables:
+    - name: imageTag
+      type: String
+      description: Docker image tag — defaults to pipeline run number, agent overrides with last successful build tag
+      required: false
+      value: <+input>.default(<+pipeline.sequenceId>)
+    - name: skipApproval
+      type: String
+      description: Skip Jira and CAB approval gates (set by fix deploy triggers)
+      required: false
+      value: <+input>.default("false")
+    - name: repoName
+      type: String
+      description: GitHub repository name (as configured in codebase connector)
+      required: false
+      value: <+input>.default("ai-agentic-demo")
+    - name: defaultBranch
+      type: String
+      description: Default branch for deployments and manifest fetching
+      required: false
+      value: <+input>.default("secops/ai-agentic-demo-main")
+    - name: appImage
+      type: String
+      description: Docker image path for main application (owner/image)
+      required: false
+      value: <+input>.default("crizstian/harnessbank-demo")
+    - name: mcpImage
+      type: String
+      description: Docker image path for MCP Financial Data service (owner/image)
+      required: false
+      value: <+input>.default("crizstian/mcp-financial-data")
+  fixedInputsOnRerun: false
+  allowStageExecutions: true

@@ -12,3 +12,6 @@ resources:
     memory: "128Mi"
 
 containerPort: 5001
+
+nodeScope: ai-agentic-demo
+tolerationValue: ai_agentic_demo_space

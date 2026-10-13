@@ -171,7 +171,7 @@ Frontend — widget de chat en el dashboard:
   authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
   key: 'demobank-user'}}). Oculto hasta SDK_READY con treatment 'on'.
 
-Commit, push y PR a secops/ai-agentic-demo-main con el Jira ID:
+Commit, push y PR de la branch local secops/ai-agentic-demo hacia la rama destino secops/ai-agentic-demo-main con el Jira ID:
 "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
 donde HD-XXXXXX es el ID real del ticket creado en Paso 0.
 ```
