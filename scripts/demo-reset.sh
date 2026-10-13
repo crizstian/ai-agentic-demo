@@ -55,6 +55,8 @@ RESET_IMAGE_TAG="${DEMO_IMAGE_TAG:-3}"
 # Docker image names (for log messages)
 APP_IMAGE="${DEMO_APP_IMAGE:-crizstian/harnessbank-demo}"
 MCP_IMAGE="${DEMO_MCP_IMAGE:-crizstian/mcp-financial-data}"
+# Harness Code remote name (empty = skip HC push)
+HC_REMOTE="${DEMO_HC_REMOTE:-harness}"
 
 RESET_DB=false
 DO_COMMIT=false
@@ -488,14 +490,31 @@ EOF
     # 6c. Push all branches (optional)
     # -----------------------------------------------------------------
     if [[ "$DO_PUSH" == true ]]; then
-        echo -e "${CYAN}--- Pushing all branches ---${NC}"
+        echo -e "${CYAN}--- Pushing all branches (GitHub) ---${NC}"
         git -C "$PROJECT_DIR" push origin "$CURRENT_BRANCH" --force-with-lease
-        print_ok "Pushed $CURRENT_BRANCH"
+        print_ok "Pushed $CURRENT_BRANCH → origin"
         git -C "$PROJECT_DIR" push origin "$TARGET_BRANCH" --force
-        print_ok "Pushed $TARGET_BRANCH"
+        print_ok "Pushed $TARGET_BRANCH → origin"
         git -C "$PROJECT_DIR" push origin "$DEPLOY_BRANCH" --force
-        print_ok "Pushed $DEPLOY_BRANCH"
+        print_ok "Pushed $DEPLOY_BRANCH → origin"
         echo ""
+
+        # -----------------------------------------------------------------
+        # 6c2. Push to Harness Code remote (parallel pipeline)
+        # -----------------------------------------------------------------
+        if [[ -n "$HC_REMOTE" ]] && git -C "$PROJECT_DIR" remote get-url "$HC_REMOTE" >/dev/null 2>&1; then
+            echo -e "${CYAN}--- Pushing all branches (Harness Code: $HC_REMOTE) ---${NC}"
+            git -C "$PROJECT_DIR" push "$HC_REMOTE" "$CURRENT_BRANCH" --force-with-lease 2>/dev/null && \
+                print_ok "Pushed $CURRENT_BRANCH → $HC_REMOTE" || \
+                print_warn "Failed to push $CURRENT_BRANCH → $HC_REMOTE"
+            git -C "$PROJECT_DIR" push "$HC_REMOTE" "$TARGET_BRANCH" --force 2>/dev/null && \
+                print_ok "Pushed $TARGET_BRANCH → $HC_REMOTE" || \
+                print_warn "Failed to push $TARGET_BRANCH → $HC_REMOTE"
+            git -C "$PROJECT_DIR" push "$HC_REMOTE" "$DEPLOY_BRANCH" --force 2>/dev/null && \
+                print_ok "Pushed $DEPLOY_BRANCH → $HC_REMOTE" || \
+                print_warn "Failed to push $DEPLOY_BRANCH → $HC_REMOTE"
+            echo ""
+        fi
 
         # -----------------------------------------------------------------
         # 6d. Clean up stale agent fix branches
@@ -503,11 +522,13 @@ EOF
         echo -e "${CYAN}--- Cleaning stale agent branches ---${NC}"
         DELETED_BRANCHES=0
         for pattern in "fix/manifest-remediation" "fix/qa-ui-alignment"; do
-            for branch in $(git -C "$PROJECT_DIR" ls-remote --heads origin "${pattern}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||'); do
-                git -C "$PROJECT_DIR" push origin --delete "$branch" 2>/dev/null && {
-                    print_ok "Deleted  $branch"
-                    ((DELETED_BRANCHES++)) || true
-                } || print_warn "Could not delete $branch"
+            for remote_name in origin ${HC_REMOTE:+"$HC_REMOTE"}; do
+                for branch in $(git -C "$PROJECT_DIR" ls-remote --heads "$remote_name" "${pattern}*" 2>/dev/null | awk '{print $2}' | sed 's|refs/heads/||'); do
+                    git -C "$PROJECT_DIR" push "$remote_name" --delete "$branch" 2>/dev/null && {
+                        print_ok "Deleted  $branch ($remote_name)"
+                        ((DELETED_BRANCHES++)) || true
+                    } || print_warn "Could not delete $branch ($remote_name)"
+                done
             done
         done
         if [[ "$DELETED_BRANCHES" -eq 0 ]]; then
