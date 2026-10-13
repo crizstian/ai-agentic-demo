@@ -1167,26 +1167,26 @@ pipeline:
       type: String
       description: Skip Jira and CAB approval gates (set by fix deploy triggers)
       required: false
-      value: <+input>.default("false")
+      value: <+input>.default(false)
     - name: repoName
       type: String
       description: GitHub repository name (as configured in codebase connector)
       required: false
-      value: <+input>.default("ai-agentic-demo")
+      value: <+input>.default(ai-agentic-demo)
     - name: defaultBranch
       type: String
       description: Default branch for deployments and manifest fetching
       required: false
-      value: <+input>.default("secops/ai-agentic-demo-main")
+      value: <+input>.default(secops/ai-agentic-demo-main)
     - name: appImage
       type: String
       description: Docker image path for main application (owner/image)
       required: false
-      value: <+input>.default("crizstian/harnessbank-demo")
+      value: <+input>.default(crizstian/harnessbank-demo)
     - name: mcpImage
       type: String
       description: Docker image path for MCP Financial Data service (owner/image)
       required: false
-      value: <+input>.default("crizstian/mcp-financial-data")
+      value: <+input>.default(crizstian/mcp-financial-data)
   fixedInputsOnRerun: false
   allowStageExecutions: true
