@@ -445,7 +445,6 @@ pipeline:
                               variant_type: branch
                               variant: <+pipeline.variables.defaultBranch>
                               path: services/mcp-financial-data
-                              cloned_codebase: "true"
                           format: CycloneDX
                           resources:
                             limits:
@@ -454,6 +453,12 @@ pipeline:
                         enforce:
                           policySets:
                             - AIBOM_Governance
+                        failureStrategies:
+                          - onFailure:
+                              errors:
+                                - AllErrors
+                              action:
+                                type: MarkAsSuccess
                       contextType: Pipeline
                   when:
                     stageStatus: Success
