@@ -1,7 +1,7 @@
-"""MCP Financial Data Service — mock internal service for DemoBank demo.
+"""MCP Financial Data Service — internal enrichment service for DemoBank.
 
-Simulates an MCP tool that provides financial data enrichment.
-DemoBank's AI assistant calls this service for additional context.
+Provides financial market data and risk profiles to DemoBank's AI assistant.
+The AI assistant calls POST /api/enrich during chat interactions.
 
 In the demo:
 - Act 1: AI assistant calls this during /api/ai/chat
@@ -32,34 +32,78 @@ RISK_PROFILES = {
     5: {"credit_score": 750, "risk_level": "low", "approved_limit": 75000},
 }
 
+PRODUCT_CATALOG = {
+    "savings_premium": {
+        "name": "Premium Savings",
+        "min_balance": 10000,
+        "apy": 4.25,
+        "features": ["No monthly fee", "Free wire transfers", "Priority support"],
+    },
+    "cd_12mo": {
+        "name": "12-Month CD",
+        "min_deposit": 5000,
+        "apy": 5.1,
+        "early_withdrawal_penalty": "90 days interest",
+    },
+    "credit_platinum": {
+        "name": "Platinum Credit Card",
+        "credit_limit_range": [15000, 100000],
+        "apr": 18.99,
+        "rewards": "2% cashback on all purchases",
+    },
+}
 
-@app.route("/mcp/financial-data", methods=["POST"])
-def financial_data():
-    """MCP tool endpoint — returns enriched financial context.
 
-    This is the endpoint that DemoBank's AI assistant calls internally.
-    In Act 5, WAAP monitors this Este-Oeste traffic and detects anomalies
-    when the prompt injection payload travels through this call.
-    """
-    body = request.get_json(silent=True) or {}
-    query = body.get("query", "")
+def _build_enrichment(query, context=None):
+    """Build enriched response combining market data with account context."""
+    account_ids = []
+    if context and "accounts" in context:
+        account_ids = [a.get("id") for a in context["accounts"] if a.get("id")]
 
-    return jsonify({
+    relevant_profiles = {
+        aid: RISK_PROFILES[aid] for aid in account_ids if aid in RISK_PROFILES
+    }
+
+    return {
         "source": "mcp-financial-data-service",
         "timestamp": datetime.utcnow().isoformat(),
         "query_received": query,
         "market_data": MARKET_DATA,
+        "risk_profiles": relevant_profiles if relevant_profiles else None,
+        "products": PRODUCT_CATALOG,
         "enrichment": {
             "type": "financial_context",
             "provider": "DemoBank Internal MCP",
             "data_classification": "CONFIDENTIAL",
+            "tools_available": [
+                "market_data_lookup",
+                "risk_profile_check",
+                "product_recommendation",
+            ],
         },
-    })
+    }
+
+
+@app.route("/api/enrich", methods=["POST"])
+def enrich():
+    """Primary enrichment endpoint — called by DemoBank AI assistant."""
+    body = request.get_json(silent=True) or {}
+    query = body.get("query", "")
+    context = body.get("context")
+    return jsonify(_build_enrichment(query, context))
+
+
+@app.route("/mcp/financial-data", methods=["POST"])
+def financial_data():
+    """Legacy MCP endpoint — kept for backward compatibility."""
+    body = request.get_json(silent=True) or {}
+    query = body.get("query", "")
+    return jsonify(_build_enrichment(query))
 
 
 @app.route("/mcp/risk-profile/<int:account_id>", methods=["GET"])
 def risk_profile(account_id):
-    """Return risk profile for an account — additional MCP tool."""
+    """Return risk profile for a specific account."""
     profile = RISK_PROFILES.get(account_id)
     if not profile:
         return jsonify({"error": "Account not found"}), 404
@@ -72,7 +116,7 @@ def risk_profile(account_id):
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "mcp-financial-data"})
+    return jsonify({"status": "ok", "service": "mcp-financial-data", "version": "1.1.0"})
 
 
 if __name__ == "__main__":

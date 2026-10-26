@@ -1,0 +1,70 @@
+##############################################################################
+# AI Evals — Two-Level Quality Gate
+#
+# Level 1 (CI):          Precomputed target, runs on every PR
+# Level 2 (Post-deploy): Live agent target, runs after deployment
+##############################################################################
+
+# --- Level 1: CI Quality Gate (precomputed) --------------------------------
+ci:
+  name: MCP Agent Quality Gate
+  suite_id: 5c1b48b4-004c-4f5f-aaba-a21f7854b16b
+  pass_strategy: all_must_pass
+  dataset: datasets/mcp-quality-gate.jsonl
+  target:
+    type: precomputed
+  evals:
+    - eval_id: mcp-financial-data-quality
+      metrics:
+        - score_name: ContainsMetric
+          type: heuristic
+          config: { kind: contains, threshold: 1.0 }
+          dimension: correctness
+        - score_name: PIIMetric
+          type: heuristic
+          config: { kind: pii, threshold: 1.0 }
+          dimension: safety
+
+# --- Level 2: Post-Deploy Live Validation ----------------------------------
+post_deploy:
+  name: MCP Agent Live Validation
+  suite_id: a3045162-6d3e-4172-beb3-17dab6c7ff9f
+  pass_strategy: all_must_pass
+  dataset: datasets/mcp-live-validation.jsonl
+  target:
+    type: agent
+    endpoint: http://demobank-e2e.selatam.harness-demo.site/api/ai/chat
+    method: POST
+    request_template: '{"message": "{{input.text}}", "session_id": "eval-{{metadata.category}}"}'
+    response_path: response
+    timeout_ms: 30000
+  evals:
+    - eval_id: mcp-live-quality
+      metrics:
+        - score_name: ContainsMetric
+          type: heuristic
+          config: { kind: contains, threshold: 1.0 }
+          dimension: correctness
+        - score_name: PIIMetric
+          type: heuristic
+          config: { kind: pii, threshold: 1.0 }
+          dimension: safety
+
+# --- Platform Resource IDs (sandbox/CristianRamirez) ----------------------
+#
+# CI suite:
+#   suite_id:      5c1b48b4-004c-4f5f-aaba-a21f7854b16b
+#   eval_id:       c67b5cba-bd06-4c7e-9213-fe6d321f467d
+#   target_id:     3115bd39-a405-4636-84d9-d982117ff4ef
+#   dataset_id:    648bbb0f-ff5b-4724-98bc-7baa6478f2d8
+#
+# Post-deploy suite:
+#   suite_id:      a3045162-6d3e-4172-beb3-17dab6c7ff9f
+#   eval_id:       49943681-3730-45c1-9106-09887528f66f
+#   target_id:     b7d308c7-60aa-4c7e-8f54-92e617ca6c55
+#   dataset_id:    ba4b3f62-5974-4b41-a8f4-6194271feee5
+#
+# Shared metric_set_id: 1972bcc6-7ca3-4a10-b020-91188674130c
+#
+# ContainsMetric note: expected must be a plain string, NOT {"text": "..."}.
+# The runner uses str() — a dict produces "{'text': 'x'}" which won't match.

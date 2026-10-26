@@ -51,7 +51,8 @@ PR Trigger → CI Stage (Build):
 │   ├── [parallel] Build DemoBank Image + Build MCP Financial Data
 │   ├── [parallel] SBOM DemoBank + SBOM MCP (CycloneDX + keyless)
 │   ├── [parallel] SLSA DemoBank + SLSA MCP (provenance + keyless)
-│   └── [parallel] Artifact Signing DemoBank + MCP (keyless)
+│   ├── [parallel] Artifact Signing DemoBank + MCP (keyless)
+│   └── AIBOM MCP Financial Data (CycloneDX, repo scan)
 │
 └── AI SRE Build Notification → webhook
 
@@ -146,7 +147,8 @@ Backend — crea app/routes/ai_assistant.py:
    en el string del prompt (ej: base_prompt + message). Consulta
    la DB local para datos de cuentas y retorna la respuesta junto
    con los datos financieros crudos como "financial_context" en el
-   JSON. Conecta a un MCP service en localhost:5001 para enriquecer.
+   JSON. Conecta al MCP financial data service usando el env var
+   MCP_SERVER_URL (ver CLAUDE.md para el contrato API completo).
    Para dev rápido, hardcodea una API key default si no hay env var.
 2. GET /api/ai/status — modelo, URL MCP, tools. Debug, sin auth.
 3. Gate con Harness FME flag "ai_chat_backend":
@@ -300,6 +302,7 @@ Diagnostica la última ejecución fallida del pipeline AI_SDLC_DemoBank.
 > |-------|----------|-------------|
 > | Build Docker (×2) | Imágenes DemoBank + MCP Financial | ~45s |
 > | SBOM + SLSA + Signing | CycloneDX SBOM, provenance SLSA, Sigstore keyless | ~30s |
+> | AIBOM MCP | AI Bill of Materials — cataloga modelos, SDKs AI, MCP tools | ~20s |
 > | SCS Verification (CD) | SBOM Enforcement + SLSA + Artifact Verify | ~15s |
 > | Canary Deploy | 1 pod canary → healthcheck → primary rollout | ~60s |
 > | Feature Flags | Progressive rollout dual flag (auto) | ~20s |
@@ -516,12 +519,15 @@ curl -sk https://demobank-e2e.selatam.harness-demo.site/api/accounts/1/details
 1. Ejecuta ./scripts/traceable-to-aisre.sh para enviar la alerta
    de Traceable a Harness AI SRE. Muéstrame el resultado.
 
-2. Usa Harness MCP para evaluar el radio de impacto:
-   - Resumen de riesgo OSS a nivel proyecto
-   - Postura de seguridad del artefacto harnessbank-demo
-   - Componentes SBOM con vulnerabilidades conocidas
-   - Busca "requests" en los SBOMs — ¿está desactualizado?
-     ¿Cuál es la versión segura recomendada?
+2. El ataque explotó la librería "requests" que está en
+   requirements.txt del servicio demobank (repo crizstian/harnessbank-demo,
+   artefacto docker.io/crizstian/harnessbank-demo, ambiente production
+   en el cluster gke-latam). Evalúa el radio de impacto con Harness MCP:
+   - Busca "requests" en los SBOMs del proyecto — ¿en cuántos
+     artefactos aparece esta dependencia?
+   - Para requests@2.28.0 (pkg:pypi/requests@2.28.0), consulta
+     su riesgo OSS: ¿está desactualizada? ¿cuántas CVEs tiene?
+     ¿cuál es la versión segura recomendada?
 ```
 
 ![Harness UI](https://img.shields.io/badge/Harness_UI-Browser-purple) Mostrar en AI SRE: Alerta (P1) → Incidente (SEV1) → Runbook (4 acciones, 12 segundos)
@@ -535,6 +541,14 @@ curl -sk https://demobank-e2e.selatam.harness-demo.site/api/accounts/1/details
 ![Claude Code](https://img.shields.io/badge/Claude_Code-IDE-blue)
 
 ```
+Orden de activación para la demo
+
+Paso 1 → Rate Limiting (static, 10 req/min)         ← para el reconocimiento
+Paso 2 → API Reconnaissance (5 paths/min, block)     ← detecta la enumeración de endpoints
+Paso 3 → BOLA Path Params (3 unique/min, block)      ← para el ataque /accounts/{id}
+Paso 4 → Sensitive Data Exposure (5 params/min, block)← filtra la fuga de financial_context
+Paso 5 → Custom Signature (prompt injection, block)  ← bloquea el POST malicioso al chat
+
 Crea una política OPA para pipelines de Harness que impida que
 endpoints AI sin autenticación lleguen a producción:
 1. Bloquear si se detecta prompt injection en SAST

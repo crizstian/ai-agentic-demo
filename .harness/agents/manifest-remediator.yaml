@@ -18,10 +18,22 @@ agent:
 
                 Execution URL: <+inputs.executionUrl>
                 Jira Key: <+pipeline.variables.jiraKey>
-                Repo: <+inputs.repoSlug>
+                Repo slug: <+inputs.repoSlug>
+                Repo URL: <+inputs.repoUrl>
                 Manifests: deploy/k8s/demobank/
                 Source branch: <+inputs.sourceBranch>
                 Target branch: <+inputs.targetBranch>
+
+                ## Platform Detection
+                You have both GitHub MCP and Harness Code MCP connectors.
+                Detect the platform from the Repo URL above:
+                - Contains "github.com" → use GitHub MCP tools
+                  (get_file_contents, create_branch, create_or_update_file,
+                   create_pull_request, merge_pull_request)
+                - Contains "git.harness.io" → use Harness MCP tools
+                  (harness_get for file contents, harness_create for branches/commits/PRs,
+                   harness_update to merge PRs)
+                Use the Repo slug for MCP tool calls (owner/repo for GitHub, repo name for HC).
 
                 ## Known failure scenario
                 The deployment.yaml references OPENAI_API_KEY via configMapKeyRef
@@ -37,8 +49,10 @@ agent:
                 ## Process
                 1. Fetch the failed execution via Harness MCP. Get logs from the
                    failed deploy step. Confirm the error is a missing ConfigMap key.
-                2. Read deploy/k8s/demobank/configmap.yaml from GitHub MCP
-                   (branch: <+inputs.sourceBranch>). Verify OPENAI_API_KEY is missing.
+                2. Read deploy/k8s/demobank/configmap.yaml from the repo
+                   (branch: <+inputs.sourceBranch>). Use whichever MCP connector
+                   matches the detected platform.
+                   Verify OPENAI_API_KEY is missing.
                 3. Add the missing key to configmap.yaml:
                    OPENAI_API_KEY: "sk-placeholder-for-demo"
                    Do NOT modify deployment.yaml. Do NOT create new files.
@@ -93,6 +107,9 @@ agent:
     repoSlug:
       type: string
       default: crizstian/ai-agentic-demo
+    repoUrl:
+      type: string
+      default: https://github.com/crizstian/ai-agentic-demo
     sourceBranch:
       type: string
       default: secops/ai-agentic-demo

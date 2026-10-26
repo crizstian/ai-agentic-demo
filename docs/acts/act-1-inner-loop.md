@@ -240,8 +240,9 @@ DemoBank SIN el AI assistant       DemoBank CON el AI assistant
   │  │   a customer message and returns an AI-powered response │
   │  │   with relevant account information                     │
   │  │ - The assistant should query our accounts database for  │
-  │  │   context and call an external MCP financial data       │
-  │  │   service for enrichment                                │
+  │  │   context and call the MCP financial data service       │
+  │  │   (POST /api/enrich — see CLAUDE.md for the full API    │
+  │  │   contract) using the MCP_SERVER_URL env var            │
   │  │ - Add a GET /api/ai/status endpoint that shows the      │
   │  │   assistant's configuration                             │
   │  │ - Register the new routes in the Flask app              │

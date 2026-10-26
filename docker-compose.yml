@@ -1,0 +1,34 @@
+services:
+  demobank-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - MCP_SERVER_URL=http://mcp-financial-data:5001
+      - OPENAI_MODEL=gpt-4
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      mcp-financial-data:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  mcp-financial-data:
+    build:
+      context: ./services/mcp-financial-data
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - MCP_PORT=5001
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3

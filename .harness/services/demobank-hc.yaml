@@ -1,0 +1,42 @@
+service:
+  name: demobank-hc
+  identifier: demobank_hc
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: HarnessBank Demo — Harness Code repo variant. Flask app with 10 intentional vulnerabilities for SecOps demo
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: demobank_manifests
+            type: K8sManifest
+            spec:
+              store:
+                type: HarnessCode
+                spec:
+                  repoName: <+input>.default(ai-agentic-demo)
+                  gitFetchType: Branch
+                  branch: <+input>.default(secops/ai-agentic-demo-main)
+                  paths:
+                    - deploy/k8s/demobank/configmap.yaml
+                    - deploy/k8s/demobank/deployment.yaml
+                    - deploy/k8s/demobank/service.yaml
+                    - deploy/k8s/ingress/ingress.yaml
+              valuesPaths:
+                - deploy/k8s/demobank/values.yaml
+              skipResourceVersioning: false
+      artifacts:
+        primary:
+          primaryArtifactRef: demobank_image
+          sources:
+            - identifier: demobank_image
+              type: DockerRegistry
+              spec:
+                connectorRef: DockerCristian
+                imagePath: <+input>.default(crizstian/harnessbank-demo)
+                tag: <+input>
+  tags:
+    app: demobank
+    tier: frontend
+    repo: harness-code
