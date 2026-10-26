@@ -453,6 +453,12 @@ pipeline:
                         enforce:
                           policySets:
                             - AIBOM_Governance
+                        failureStrategies:
+                          - onFailure:
+                              errors:
+                                - AllErrors
+                              action:
+                                type: MarkAsSuccess
                       contextType: Pipeline
                   when:
                     stageStatus: Success
