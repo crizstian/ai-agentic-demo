@@ -132,15 +132,15 @@ body {
 }
 
 .action-card:nth-child(2) {
-  transform: rotate(15deg) translateY(30px);
+  transform: none;
 }
 
 .action-card:nth-child(3) {
-  transform: rotate(-10deg) translateY(-20px);
+  transform: none;
 }
 
 .action-card:nth-child(4) {
-  transform: rotate(8deg) translateY(40px);
+  transform: none;
 }
 
 .action-card:hover {
@@ -282,8 +282,7 @@ body {
 /* DEMO UX BUG: transfer button is pushed completely off-screen */
 .form-actions {
   margin-top: 24px;
-  margin-left: 600px;
-  margin-left: 600px;
+  margin-left: 0;
 }
 
 .apply-transfer-btn {
@@ -372,16 +371,6 @@ body {
 #transfer-result {
   margin-top: 20px;
   max-width: 520px;
-}
-
-.action-card:nth-child(2) {
-  transform: rotate(3deg) translateY(10px);
-}
-.action-card:nth-child(3) {
-  transform: rotate(-2deg) translateY(15px);
-}
-.action-card:nth-child(4) {
-  transform: rotate(4deg) translateY(8px);
 }
 
 /* AI Chat Widget */
