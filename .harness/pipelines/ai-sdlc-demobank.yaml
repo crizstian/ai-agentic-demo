@@ -445,7 +445,6 @@ pipeline:
                               variant_type: branch
                               variant: <+pipeline.variables.defaultBranch>
                               path: services/mcp-financial-data
-                              cloned_codebase: "true"
                           format: CycloneDX
                           resources:
                             limits:
