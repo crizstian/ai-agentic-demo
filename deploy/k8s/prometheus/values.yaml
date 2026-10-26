@@ -1,0 +1,95 @@
+# Prometheus — scoped to demo namespace only (no cluster-wide discovery)
+
+server:
+  nodeSelector:
+    scope: ai-agentic-demo
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: ai_agentic_demo_space
+      effect: NoSchedule
+  persistentVolume:
+    enabled: false
+  retention: "2d"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  service:
+    type: ClusterIP
+
+alertmanager:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+
+kube-state-metrics:
+  enabled: true
+  nodeSelector:
+    scope: ai-agentic-demo
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: ai_agentic_demo_space
+      effect: NoSchedule
+  namespaces: "harnessbank-demo-end2end"
+
+rbac:
+  create: false
+
+# Disable ALL default cluster-wide discovery jobs
+scrapeConfigs:
+  prometheus:
+    enabled: true
+    static_configs:
+      - targets:
+          - localhost:9090
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  # Custom demo-only jobs
+  kube-state-metrics:
+    enabled: true
+    static_configs:
+      - targets:
+          - prometheus-kube-state-metrics:8080
+  demo-demobank:
+    enabled: true
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - harnessbank-demo-end2end.harnessbank-demo-end2end.svc.cluster.local:80
+        labels:
+          app: demobank
+          environment: production
+  demo-mcp-financial-data:
+    enabled: true
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - mcp-financial-data.harnessbank-demo-end2end.svc.cluster.local:5001
+        labels:
+          app: mcp-financial-data
+          environment: production

@@ -539,6 +539,48 @@ EOF
         echo ""
 
         # -----------------------------------------------------------------
+        # 6d2. Close stale PRs from previous demo
+        # -----------------------------------------------------------------
+        echo -e "${CYAN}--- Closing stale PRs ---${NC}"
+        CLOSED_PRS=0
+        for pr_number in $(gh pr list --repo "crizstian/ai-agentic-demo" --state open --base "$TARGET_BRANCH" --json number --jq '.[].number' 2>/dev/null); do
+            gh pr close "$pr_number" --repo "crizstian/ai-agentic-demo" --comment "Auto-closed by demo reset" 2>/dev/null && {
+                print_ok "Closed PR #$pr_number"
+                ((CLOSED_PRS++)) || true
+            } || print_warn "Could not close PR #$pr_number"
+        done
+        if [[ "$CLOSED_PRS" -eq 0 ]]; then
+            print_info "No open PRs to close"
+        else
+            print_ok "Closed $CLOSED_PRS PR(s)"
+        fi
+        echo ""
+
+        # -----------------------------------------------------------------
+        # 6d3. Reset feature flags to OFF
+        # -----------------------------------------------------------------
+        echo -e "${CYAN}--- Resetting feature flags ---${NC}"
+        # Feature flags are reset via the Harness FME API
+        # The pipeline's rollback steps handle this, but we also ensure
+        # flags start OFF for the next demo
+        FF_API="https://app.harness.io/gateway/cf/admin/features"
+        FF_QS="accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez"
+        for flag in ai_chat_enabled ai_chat_backend; do
+            FF_STATUS=$(curl -s "${FF_API}/${flag}?${FF_QS}&environmentIdentifier=Prod" \
+                -H "x-api-key: $HARNESS_API_KEY" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('envProperties',{}).get('state','unknown'))" 2>/dev/null || echo "unknown")
+            if [[ "$FF_STATUS" == "off" ]]; then
+                print_info "Flag $flag already OFF"
+            else
+                curl -s -X PATCH "${FF_API}/${flag}?${FF_QS}&environmentIdentifier=Prod" \
+                    -H "x-api-key: $HARNESS_API_KEY" -H "Content-Type: application/json" \
+                    -d '{"state": "off"}' >/dev/null 2>&1 && \
+                    print_ok "Flag $flag → OFF" || \
+                    print_warn "Could not reset $flag (reset manually in Harness FME)"
+            fi
+        done
+        echo ""
+
+        # -----------------------------------------------------------------
         # 6e. Trigger DemoBank Reset Deploy pipeline (tag 3)
         # -----------------------------------------------------------------
         echo -e "${CYAN}--- Triggering DemoBank Reset Deploy (tag $RESET_IMAGE_TAG) ---${NC}"

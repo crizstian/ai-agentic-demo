@@ -54,29 +54,46 @@ pipeline:
                                   pip install --quiet -r requirements.txt
                                   python -m py_compile app/server.py
                                   echo "Build validation passed"
-                          - step:
-                              type: Test
-                              name: Test Intelligence
-                              identifier: Test_Intelligence
-                              spec:
-                                shell: Sh
-                                command: |-
-                                  pip install -r requirements-dev.txt
-                                  pytest --junitxml=test-results/junit.xml
-                                reports:
-                                  type: JUnit
+                          - parallel:
+                              - step:
+                                  type: Test
+                                  name: Test Intelligence
+                                  identifier: Test_Intelligence
                                   spec:
-                                    paths:
-                                      - test-results/junit.xml
-                                intelligenceMode: true
-                              failureStrategies:
-                                - onFailure:
-                                    errors:
-                                      - AllErrors
-                                    action:
-                                      type: MarkAsSuccess
-                              when:
-                                stageStatus: Success
+                                    shell: Sh
+                                    command: |-
+                                      pip install -r requirements-dev.txt
+                                      pytest --junitxml=test-results/junit.xml
+                                    reports:
+                                      type: JUnit
+                                      spec:
+                                        paths:
+                                          - test-results/junit.xml
+                                    intelligenceMode: true
+                                  failureStrategies:
+                                    - onFailure:
+                                        errors:
+                                          - AllErrors
+                                        action:
+                                          type: MarkAsSuccess
+                                  when:
+                                    stageStatus: Success
+                              - step:
+                                  type: AiEval
+                                  name: AI Quality Gate
+                                  identifier: AI_Quality_Gate
+                                  spec:
+                                    suiteId: 5c1b48b4-004c-4f5f-aaba-a21f7854b16b
+                                    apiKey: <+secrets.getValue("harnessToken")>
+                                  timeout: 10m
+                                  failureStrategies:
+                                    - onFailure:
+                                        errors:
+                                          - AllErrors
+                                        action:
+                                          type: MarkAsSuccess
+                                  when:
+                                    stageStatus: Success
                     - parallel:
                         - stepGroup:
                             name: Worker Agents
@@ -116,7 +133,7 @@ pipeline:
                                             - mcp_harness_cristian
                                             - mcp_github_cristian
                                           modelName: claude-sonnet-4-6
-                                          maxTurns: 30
+                                          maxTurns: "30"
                                       when:
                                         stageStatus: Success
                                       failureStrategies:
@@ -185,7 +202,7 @@ pipeline:
                                       modelName: claude-sonnet-4-6
                                   when:
                                     stageStatus: Success
-                                    condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
+                                    condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning_and_Remediation.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
                                 contextType: Pipeline
                     - step:
                         type: Run
@@ -221,8 +238,12 @@ pipeline:
                             fi
                             echo "Token present (${#GIT_TOKEN} chars)"
 
-                            git remote set-url origin "<+codebase.repoUrl>"
-                            printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
+                            REPO_URL="<+codebase.repoUrl>"
+                            git remote set-url origin "$REPO_URL"
+                            GIT_HOST=$(echo "$REPO_URL" | sed -n 's|.*://\([^/]*\).*|\1|p')
+                            [ -z "$GIT_HOST" ] && GIT_HOST="github.com"
+                            echo "Detected git host: $GIT_HOST"
+                            printf 'https://x-access-token:%s@%s\n' "$GIT_TOKEN" "$GIT_HOST" > /tmp/.git-creds
                             git config credential.helper 'store --file=/tmp/.git-creds'
 
                             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -240,7 +261,7 @@ pipeline:
 
                             echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
                           envVariables:
-                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
+                            GIT_TOKEN: <+secrets.getValue(<+pipeline.variables.gitTokenSecret>)>
                         when:
                           stageStatus: Success
               - stepGroup:
@@ -412,6 +433,28 @@ pipeline:
                                 limits:
                                   memory: 500Mi
                                   cpu: "0.5"
+                    - step:
+                        type: SscaAibomOrchestration
+                        name: AIBOM MCP Financial Data
+                        identifier: AIBOM_MCP
+                        spec:
+                          source:
+                            type: repository
+                            spec:
+                              url: https://github.com/crizstian/<+pipeline.variables.repoName>
+                              variant_type: branch
+                              variant: <+pipeline.variables.defaultBranch>
+                              path: services/mcp-financial-data
+                              cloned_codebase: "true"
+                          format: CycloneDX
+                          resources:
+                            limits:
+                              memory: 500Mi
+                              cpu: "0.5"
+                        enforce:
+                          policySets:
+                            - AIBOM_Governance
+                      contextType: Pipeline
                   when:
                     stageStatus: Success
                     condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
@@ -610,6 +653,37 @@ pipeline:
                                   retryIntervals:
                                     - 3s
                     - step:
+                        type: Verify
+                        name: AI Continuous Verification
+                        identifier: AI_Continuous_Verification
+                        spec:
+                          isMultiServicesOrEnvs: false
+                          type: Canary
+                          monitoredService:
+                            type: Default
+                            spec: {}
+                          spec:
+                            sensitivity: LOW
+                            duration: 5m
+                            deploymentTag: <+artifacts.primary.tag>
+                        timeout: 15m
+                        failureStrategies:
+                          - onFailure:
+                              errors:
+                                - Verification
+                              action:
+                                type: ManualIntervention
+                                spec:
+                                  timeout: 10m
+                                  onTimeout:
+                                    action:
+                                      type: MarkAsSuccess
+                          - onFailure:
+                              errors:
+                                - AllErrors
+                              action:
+                                type: MarkAsSuccess
+                    - step:
                         name: Canary Delete
                         identifier: canaryDelete
                         type: K8sCanaryDelete
@@ -733,7 +807,7 @@ pipeline:
                         script: |-
                           curl -X POST -H 'content-type: application/json' \
                             --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
-                            -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>"}'
+                            -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>", "repoSlug": "crizstian/<+pipeline.variables.repoName>", "repoUrl": "<+codebase.repoUrl>"}'
                     environmentVariables: []
                     outputVariables: []
                   timeout: 1m
@@ -1102,7 +1176,7 @@ pipeline:
                         - mcp_harness_cristian
                         - mcp_github_cristian
                       modelName: claude-sonnet-4-6
-                      maxTurns: 25
+                      maxTurns: "25"
                   when:
                     stageStatus: Success
                     condition: <+execution.steps.UI_Alignment_Test.output.outputVariables.DEFECTS> != "NONE"
@@ -1120,6 +1194,22 @@ pipeline:
                               action:
                                 type: MarkAsSuccess
                 contextType: Pipeline
+              - step:
+                  type: AiEval
+                  name: AI Live Validation
+                  identifier: AI_Live_Validation
+                  spec:
+                    suiteId: a3045162-6d3e-4172-beb3-17dab6c7ff9f
+                    apiKey: <+secrets.getValue("harnessToken")>
+                  timeout: 10m
+                  failureStrategies:
+                    - onFailure:
+                        errors:
+                          - AllErrors
+                        action:
+                          type: MarkAsSuccess
+                  when:
+                    stageStatus: Success
               - step:
                   type: Run
                   name: Generate N-S Traffic
@@ -1188,5 +1278,10 @@ pipeline:
       description: Docker image path for MCP Financial Data service (owner/image)
       required: false
       value: <+input>.default(crizstian/mcp-financial-data)
+    - name: gitTokenSecret
+      type: String
+      description: Secret name for git push authentication (CristianGithub for GitHub, harnessToken for Harness Code)
+      required: false
+      value: <+input>.default(CristianGithub)
   fixedInputsOnRerun: false
   allowStageExecutions: true

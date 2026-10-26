@@ -115,7 +115,7 @@ pipeline:
                                             - mcp_harness_cristian
                                             - mcp_github_cristian
                                           modelName: claude-sonnet-4-6
-                                          maxTurns: 30
+                                          maxTurns: "30"
                                       when:
                                         stageStatus: Success
                                       failureStrategies:
@@ -184,7 +184,7 @@ pipeline:
                                       modelName: claude-sonnet-4-6
                                   when:
                                     stageStatus: Success
-                                    condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
+                                    condition: <+pipeline.stages.CI.spec.execution.steps.PR_Pipeline.steps.Security_Scanning_and_Remediation.steps.Semgrep_SAST.output.outputVariables.HIGH> > 0
                                 contextType: Pipeline
                     - step:
                         type: Run
@@ -220,8 +220,12 @@ pipeline:
                             fi
                             echo "Token present (${#GIT_TOKEN} chars)"
 
-                            git remote set-url origin "<+codebase.repoUrl>"
-                            printf 'https://x-access-token:%s@github.com\n' "$GIT_TOKEN" > /tmp/.git-creds
+                            REPO_URL="<+codebase.repoUrl>"
+                            git remote set-url origin "$REPO_URL"
+                            GIT_HOST=$(echo "$REPO_URL" | sed -n 's|.*://\([^/]*\).*|\1|p')
+                            [ -z "$GIT_HOST" ] && GIT_HOST="github.com"
+                            echo "Detected git host: $GIT_HOST"
+                            printf 'https://x-access-token:%s@%s\n' "$GIT_TOKEN" "$GIT_HOST" > /tmp/.git-creds
                             git config credential.helper 'store --file=/tmp/.git-creds'
 
                             CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -239,7 +243,7 @@ pipeline:
 
                             echo "=== Fixes committed and pushed to $SOURCE_BRANCH ==="
                           envVariables:
-                            GIT_TOKEN: <+secrets.getValue("CristianGithub")>
+                            GIT_TOKEN: <+secrets.getValue(<+pipeline.variables.gitTokenSecret>)>
                         when:
                           stageStatus: Success
               - stepGroup:
@@ -455,7 +459,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: demobank
+            serviceRef: demobank_hc
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes
@@ -466,7 +470,7 @@ pipeline:
                         type: K8sManifest
                         spec:
                           store:
-                            type: Github
+                            type: HarnessCode
                             spec:
                               repoName: <+pipeline.variables.repoName>
                               branch: <+pipeline.variables.defaultBranch>
@@ -732,7 +736,7 @@ pipeline:
                         script: |-
                           curl -X POST -H 'content-type: application/json' \
                             --url 'https://app.harness.io/gateway/pipeline/api/webhook/custom/v2?accountIdentifier=EeRjnXTnS4GrLG5VNNJZUw&orgIdentifier=sandbox&projectIdentifier=CristianRamirez&pipelineIdentifier=Kubernetes_Remediation&triggerIdentifier=manifest_remediation_trigger' \
-                            -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>"}'
+                            -d '{"executionUrl": "<+pipeline.executionUrl>", "jiraKey": "<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>", "repoSlug": "<+pipeline.variables.repoName>", "repoUrl": "<+codebase.repoUrl>"}'
                     environmentVariables: []
                     outputVariables: []
                   timeout: 1m
@@ -762,7 +766,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: mcp_financial_data
+            serviceRef: mcp_financial_data_hc
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes
@@ -773,7 +777,7 @@ pipeline:
                         type: K8sManifest
                         spec:
                           store:
-                            type: Github
+                            type: HarnessCode
                             spec:
                               repoName: <+pipeline.variables.repoName>
                               branch: <+pipeline.variables.defaultBranch>
@@ -1101,7 +1105,7 @@ pipeline:
                         - mcp_harness_cristian
                         - mcp_github_cristian
                       modelName: claude-sonnet-4-6
-                      maxTurns: 25
+                      maxTurns: "25"
                   when:
                     stageStatus: Success
                     condition: <+execution.steps.UI_Alignment_Test.output.outputVariables.DEFECTS> != "NONE"
@@ -1187,5 +1191,10 @@ pipeline:
       description: Docker image path for MCP Financial Data service (owner/image)
       required: false
       value: <+input>.default(crizstian/mcp-financial-data)
+    - name: gitTokenSecret
+      type: String
+      description: Secret name for git push authentication (CristianGithub for GitHub, harnessToken for Harness Code)
+      required: false
+      value: <+input>.default(harnessToken)
   fixedInputsOnRerun: false
   allowStageExecutions: true

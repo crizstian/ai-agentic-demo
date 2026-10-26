@@ -1,0 +1,40 @@
+service:
+  name: mcp-financial-data-hc
+  identifier: mcp_financial_data_hc
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: MCP Financial Data mock service — Harness Code repo variant. East-West traffic generator for Traceable AI Security demo
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: mcp_financial_data_manifests
+            type: K8sManifest
+            spec:
+              store:
+                type: HarnessCode
+                spec:
+                  repoName: <+input>.default(ai-agentic-demo)
+                  gitFetchType: Branch
+                  branch: <+input>.default(secops/ai-agentic-demo-main)
+                  paths:
+                    - deploy/k8s/mcp-financial-data/deployment.yaml
+                    - deploy/k8s/mcp-financial-data/service.yaml
+              valuesPaths:
+                - deploy/k8s/mcp-financial-data/values.yaml
+              skipResourceVersioning: false
+      artifacts:
+        primary:
+          primaryArtifactRef: mcp_financial_data_image
+          sources:
+            - identifier: mcp_financial_data_image
+              type: DockerRegistry
+              spec:
+                connectorRef: DockerCristian
+                imagePath: <+input>.default(crizstian/mcp-financial-data)
+                tag: <+input>
+  tags:
+    app: mcp-financial-data
+    tier: internal
+    repo: harness-code
