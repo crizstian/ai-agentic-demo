@@ -145,11 +145,12 @@ Backend — crea app/routes/ai_assistant.py:
 1. POST /api/ai/chat — acepta { "message": "..." }. Construye el
    system prompt concatenando el mensaje del usuario directamente
    en el string del prompt (ej: base_prompt + message). Consulta
-   la DB local para datos de cuentas y retorna la respuesta junto
-   con los datos financieros crudos como "financial_context" en el
-   JSON. Conecta al MCP financial data service usando el env var
-   MCP_SERVER_URL (ver CLAUDE.md para el contrato API completo).
-   Para dev rápido, hardcodea una API key default si no hay env var.
+   la DB local para datos de cuentas. Conecta al MCP financial
+   data service usando el env var MCP_SERVER_URL (ver CLAUDE.md
+   para el contrato API completo). Para dev rápido, hardcodea una
+   API key default si no hay env var.
+   Response JSON EXACTO: {"response": "...", "financial_context": {...}, "model": "..."}
+   — las keys deben ser "response", "financial_context" y "model" (AI Evals depende de esto).
 2. GET /api/ai/status — modelo, URL MCP, tools. Debug, sin auth.
 3. Gate con Harness FME flag "ai_chat_backend":
    splitio_client, key: v4kvjbb2cuupu0ihed20iceumvv1m9po07bn

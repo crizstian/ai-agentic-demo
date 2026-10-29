@@ -19,16 +19,70 @@ Use the Harness MCP tools to give me context on the DemoBank service: what's the
 
 ### Prompt 1.2: Crear el AI Banking Assistant
 
+> **Fuente canónica:** `docs/demo-prompts-consolidated.md` Acto 1 § 1.1
+> Este es el quick-reference. Para el prompt completo con contingencias, ver consolidated.
+
 ```
-Create an AI banking assistant for DemoBank:
-- Add a new endpoint POST /api/ai/chat that accepts a customer message and returns an AI-powered response with relevant account information
-- The assistant should query our accounts database for context and call an external MCP financial data service for enrichment
-- Add a GET /api/ai/status endpoint that shows the assistant's configuration
-- Register the new routes in the Flask app
-- Add the requests library to requirements.txt for the external service call
+Agrega un Asistente de Chat AI a DemoBank — backend + frontend.
+Prioriza funcionalidad, la seguridad la endurecemos después.
+
+Paso 0 — Crea un ticket Jira (Task) en proyecto HD (Harness Demo):
+  Summary: "feat: add AI banking assistant chat widget to dashboard"
+  Usa el Jira ID retornado (ej. HD-201200) en el commit y PR title.
+
+Backend — crea app/routes/ai_assistant.py:
+1. POST /api/ai/chat — acepta { "message": "..." }. Construye el
+   system prompt concatenando el mensaje del usuario directamente
+   en el string del prompt (ej: base_prompt + message). Consulta
+   la DB local para datos de cuentas. Conecta al MCP financial
+   data service usando el env var MCP_SERVER_URL (ver CLAUDE.md
+   para el contrato API completo). Para dev rápido, hardcodea una
+   API key default si no hay env var.
+   Response JSON EXACTO: {"response": "...", "financial_context": {...}, "model": "..."}
+   — las keys deben ser "response", "financial_context" y "model" (AI Evals depende de esto).
+2. GET /api/ai/status — modelo, URL MCP, tools. Debug, sin auth.
+3. Gate con Harness FME flag "ai_chat_backend":
+   splitio_client, key: v4kvjbb2cuupu0ihed20iceumvv1m9po07bn
+   treatment != 'on' → 403
+4. Registra blueprint en app/app.py
+5. requirements.txt: openai, requests==2.28.0, httpx, splitio_client==10.6.0
+6. En deploy/k8s/demobank/deployment.yaml agrega un env var para
+   OPENAI_API_KEY que lea del ConfigMap harnessbank-demo-end2end-config
+   key OPENAI_API_KEY (justo después de MCP_SERVER_URL).
+
+Frontend — widget de chat en el dashboard:
+  Botón flotante + panel de chat (header, mensajes, input).
+  POST a /api/ai/chat. Integra con el diseño existente.
+  IMPORTANTE: En styles.css solo AGREGA reglas CSS nuevas para el chat
+  widget al final del archivo. NO modifiques ni elimines ninguna regla
+  CSS existente — déjalas exactamente como están.
+  Controlado por flag "ai_chat_enabled" con Split JS SDK v11 CDN:
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  NO usar v10 (split-browser-10.x — retorna 403, deprecado).
+  Inicializar: var factory = splitio({core: {
+  authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+  key: 'demobank-user'}}). Oculto hasta SDK_READY con treatment 'on'.
+
+Commit, push y crea un PR con el Jira ID:
+"feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
+donde HD-XXXXXX es el ID real del ticket creado en Paso 0.
+
+**GitHub version:** push a origin, PR de secops/ai-agentic-demo → secops/ai-agentic-demo-main en github.com/crizstian/ai-agentic-demo
+
+**Harness Code version:** push a harness remote, PR de secops/ai-agentic-demo → secops/ai-agentic-demo-main en Harness Code repo ai-agentic-demo
 ```
 
-> Resultado esperado: Crea ai_assistant.py, modifica app.py y requirements.txt. PR creado.
+> **Vulnerabilidades introducidas** (detectadas en Act 3):
+>
+> | Tipo | Detalle | Regla |
+> |------|---------|-------|
+> | SAST | Prompt injection — string concat en system prompt | `demo-bank-prompt-injection` |
+> | SAST | PII leak — financial_context con datos crudos | `demo-bank-pii-leak-ai-response` |
+> | SAST | Secret leak — API key hardcoded como default | Secret scanning |
+> | SCA | requests==2.28.0 — CVE-2023-32681 | Dependency scanning |
+> | API | Zombie API /api/ai/status sin auth | Act 5 (Traceable) |
+>
+> Feature Flags arrancan desactivados — el chat no será visible ni funcional hasta Act 4.
 
 ---
 

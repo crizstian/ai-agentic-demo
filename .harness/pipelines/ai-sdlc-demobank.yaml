@@ -85,6 +85,9 @@ pipeline:
                                   spec:
                                     suiteId: 5c1b48b4-004c-4f5f-aaba-a21f7854b16b
                                     apiKey: <+secrets.getValue("harnessToken")>
+                                    envVariables:
+                                      HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+                                      HARNESS_ACCOUNT: <+account.identifier>
                                   timeout: 10m
                                   failureStrategies:
                                     - onFailure:
@@ -1206,6 +1209,9 @@ pipeline:
                   spec:
                     suiteId: a3045162-6d3e-4172-beb3-17dab6c7ff9f
                     apiKey: <+secrets.getValue("harnessToken")>
+                    envVariables:
+                      HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+                      HARNESS_ACCOUNT: <+account.identifier>
                   timeout: 10m
                   failureStrategies:
                     - onFailure:
