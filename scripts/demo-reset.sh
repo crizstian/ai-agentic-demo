@@ -21,10 +21,11 @@ set -euo pipefail
 #   - DB schema uses TEXT ids (original)
 #   - requests library NOT in requirements.txt
 #   - Only 2 unit tests (test_health + test_dashboard smoke)
+#   - deployment.yaml has NO OPENAI_API_KEY env var (Act 1 adds it)
 #   - ConfigMap missing OPENAI_API_KEY (Act 4.5 bug)
 #
 # Files UNTOUCHED (preserved from secops/ai-agentic-demo):
-#   deploy/       — k8s manifests (configmap reset separately)
+#   deploy/       — k8s manifests (deployment.yaml + configmap reset separately)
 #   .harness/     — pipelines, services, environments, OPA policies
 #   scripts/      — attack-chain, traceable-demo-setup (this script is also preserved)
 #   services/     — mcp-financial-data
@@ -219,6 +220,15 @@ else
     print_info "configmap.yaml already clean (no OPENAI_API_KEY)"
 fi
 
+# Remove OPENAI_API_KEY env var block from deployment.yaml (coding agent adds it in Act 1)
+DEPLOYMENT_FILE="${PROJECT_DIR}/deploy/k8s/demobank/deployment.yaml"
+if grep -q "OPENAI_API_KEY" "$DEPLOYMENT_FILE" 2>/dev/null; then
+    sed -i '/- name: OPENAI_API_KEY/{N;N;N;N;d}' "$DEPLOYMENT_FILE"
+    print_ok "Removed OPENAI_API_KEY env var from deployment.yaml (Act 1 will add it)"
+else
+    print_info "deployment.yaml already clean (no OPENAI_API_KEY)"
+fi
+
 echo ""
 
 # =========================================================================
@@ -320,6 +330,10 @@ check "CSS bug present: off-screen transfer button" "$R"
 grep -q "OPENAI_API_KEY" "${PROJECT_DIR}/deploy/k8s/demobank/configmap.yaml" 2>/dev/null && R="fail" || R="pass"
 check "ConfigMap missing OPENAI_API_KEY (Act 4.5 bug)" "$R"
 
+# deployment.yaml OPENAI_API_KEY must NOT be present (coding agent adds it in Act 1)
+grep -q "OPENAI_API_KEY" "${PROJECT_DIR}/deploy/k8s/demobank/deployment.yaml" 2>/dev/null && R="fail" || R="pass"
+check "deployment.yaml missing OPENAI_API_KEY (Act 1 adds it)" "$R"
+
 # No PII in seed data
 grep -q "email" "${PROJECT_DIR}/scripts/seed.py" 2>/dev/null && R="fail" || R="pass"
 check "No PII (email) in seed.py" "$R"
@@ -399,9 +413,9 @@ if [[ "$DO_COMMIT" == true ]]; then
 
     cd "$PROJECT_DIR"
 
-    # Stage restored files + CSS bugs + configmap reset
+    # Stage restored files + CSS bugs + deploy manifest resets
     git add "${RESTORE_FILES[@]}"
-    git add deploy/k8s/demobank/configmap.yaml 2>/dev/null || true
+    git add deploy/k8s/demobank/configmap.yaml deploy/k8s/demobank/deployment.yaml 2>/dev/null || true
 
     # Stage test files (restored + new minimal)
     git add tests/conftest.py tests/test_health.py tests/test_dashboard.py
@@ -633,6 +647,7 @@ echo -e "    CMDi (002):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    XSS  (006):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CORS (007):    ${YELLOW}VULNERABLE${NC} (Act 3 will fix)"
 echo -e "    CSS bugs:      ${YELLOW}MISALIGNED${NC} (QA agent will fix)"
+echo -e "    deploy.yaml:   ${RED}NO OPENAI_API_KEY${NC} (Act 1 adds env var)"
 echo -e "    ConfigMap:     ${YELLOW}MISSING KEY${NC} (Act 4.5 remediator will fix)"
 echo -e "    Unit tests:    ${YELLOW}2 only${NC} (code review agent will flag)"
 
