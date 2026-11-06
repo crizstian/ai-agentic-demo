@@ -100,6 +100,76 @@
     <p>DemoBank AI SDLC &mdash; Demo Only &mdash; Not a real bank</p>
   </footer>
 
+  <!-- AI Chat Widget — controlled by FME flag ai_chat_enabled -->
+  <div id="ai-chat-toggle" class="chat-toggle" style="display:none;" onclick="toggleChat()">
+    <span class="chat-toggle-icon">💬</span>
+  </div>
+
+  <div id="ai-chat-panel" class="chat-panel" style="display:none;">
+    <div class="chat-header">
+      <span>DemoBank AI Assistant</span>
+      <button class="chat-close" onclick="toggleChat()">&times;</button>
+    </div>
+    <div id="chat-messages" class="chat-messages">
+      <div class="chat-message bot-message">Hi! I'm your DemoBank AI assistant. How can I help you today?</div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" class="chat-input" placeholder="Ask me anything..." onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+
+  <script src="//cdn.split.io/sdk/split-11.9.0.min.js"></script>
+  <script>
+    var chatOpen = false;
+    function toggleChat() {
+      chatOpen = !chatOpen;
+      document.getElementById('ai-chat-panel').style.display = chatOpen ? 'flex' : 'none';
+      if (chatOpen) document.getElementById('chat-input').focus();
+    }
+
+    function sendChat() {
+      var input = document.getElementById('chat-input');
+      var msg = input.value.trim();
+      if (!msg) return;
+      var messages = document.getElementById('chat-messages');
+      messages.innerHTML += '<div class="chat-message user-message">' + msg.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      input.value = '';
+      messages.scrollTop = messages.scrollHeight;
+
+      fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: msg})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var reply = data.response || data.error || 'No response';
+        messages.innerHTML += '<div class="chat-message bot-message">' + reply.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+        messages.scrollTop = messages.scrollHeight;
+      })
+      .catch(function() {
+        messages.innerHTML += '<div class="chat-message bot-message">Sorry, something went wrong.</div>';
+        messages.scrollTop = messages.scrollHeight;
+      });
+    }
+
+    // Feature flag — show chat only when ai_chat_enabled is 'on'
+    var factory = splitio({
+      core: {
+        authorizationKey: 'cl0bl351743733kglfasq85pr2kq8ul9rmqv',
+        key: 'demobank-user'
+      }
+    });
+    var splitClient = factory.client();
+    splitClient.on(splitClient.Event.SDK_READY, function() {
+      var treatment = splitClient.getTreatment('ai_chat_enabled');
+      if (treatment === 'on') {
+        document.getElementById('ai-chat-toggle').style.display = 'flex';
+      }
+    });
+  </script>
+
   <script src="/app.js"></script>
 </body>
 </html>
