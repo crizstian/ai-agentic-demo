@@ -86,6 +86,7 @@ pipeline:
                                     apiKey: <+secrets.getValue("harnessToken")>
                                     envVariables:
                                       HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+                                      HARNESS_API_KEY: <+secrets.getValue("harnessToken")>
                                       HARNESS_ACCOUNT: <+account.identifier>
                                   timeout: 10m
                                   failureStrategies:
