@@ -1,0 +1,209 @@
+version: 1
+agent:
+  step:
+    run:
+      container:
+        image: harness/harness-ai-agent:0.1.77
+      shell: sh
+      script: |
+        exec /opt/agent/entrypoint.sh
+      env:
+        PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
+        PLUGIN_TASK: |+
+          You are the Security Remediator. Fix up to 4 CRITICAL/HIGH vulnerabilities.
+          No human present — complete autonomously.
+
+            ## Context
+            - Repo: <+inputs.repoOwner>/<+inputs.repoName>
+            - Repo URL: <+codebase.repoUrl>
+            - PR: #<+trigger.prNumber>
+            - Branch: <+trigger.sourceBranch> → <+trigger.targetBranch>
+            - Harness: org=sandbox, project=CristianRamirez
+            - Execution ID: <+pipeline.executionId>
+
+            ## Platform Detection
+            You have both GitHub MCP and Harness Code MCP connectors.
+            Detect the platform from the Repo URL:
+            - Contains "github.com" → use GitHub MCP for PR comments (create_issue_comment)
+            - Contains "git.harness.io" → use Harness MCP for PR comments (harness_create with pr_comment type)
+
+            ## Turn Budget
+            You have a HARD LIMIT of 20 turns total. Allocate them wisely:
+            - Step 1 (fetch findings): MAX 3 turns
+            - Step 2 (fix 4 vulns): MAX 12 turns (3 per vuln: read → edit → verify)
+            - Step 3 (report): MAX 3 turns
+            - Step 4 (export): MAX 2 turns
+
+            ## Step 1 — Fetch findings (MAX 3 turns)
+
+            Call 1 — SAST+SCA from this execution:
+              harness_list(resource_type='pipeline_security_issue',
+                org_id='sandbox', project_id='CristianRamirez',
+                filters={execution_id: '<+pipeline.executionId>',
+                         issue_types: 'SAST,SCA',
+                         severity_codes: 'Critical,High',
+                         page_size_new: 100, page_size_existing: 100})
+
+            Call 2 (ONLY if Call 1 returns empty) — drop issue_types filter:
+              harness_list(resource_type='pipeline_security_issue',
+                org_id='sandbox', project_id='CristianRamirez',
+                filters={execution_id: '<+pipeline.executionId>',
+                         severity_codes: 'Critical,High',
+                         page_size_new: 100, page_size_existing: 100})
+
+            Call 3 (ONLY if Call 2 returns empty) — cross-execution fallback:
+              harness_list(resource_type='security_issue',
+                org_id='sandbox', project_id='CristianRamirez',
+                filters={issue_types: 'SAST', severity_codes: 'Critical,High'},
+                size=20)
+
+            Sort: CRITICAL first, then HIGH. Take the first 4.
+            DO NOT call harness_get for individual findings — the list response
+            already contains severity, file path, and issue description.
+            Move directly to Step 2.
+
+            ## Step 2 — Fix first 4 findings (MAX 12 turns)
+
+            For each finding, do exactly 3 things:
+            1. Read the affected file (path from the finding, prefixed with /harness/)
+            2. Edit the specific vulnerable code — apply the matching fix pattern below
+            3. Verify syntax: python -m py_compile <file>
+
+            Then move to the next finding. Do NOT commit, push, or create branches.
+
+            ### Fix patterns — apply directly, no research needed
+
+            **SCA — Vulnerable dependency in requirements.txt:**
+            Use these known-safe versions. Do NOT run pip install, pip index,
+            or pip show to look up versions — that wastes turns.
+              - PyJWT → pyjwt>=2.9.0
+              - requests → requests>=2.32.0
+              - flask-cors → Flask-Cors>=5.0.0
+              - httpx → httpx>=0.27.0
+              - cryptography → cryptography>=43.0.0
+              - splitio_client — leave as-is (no known CVE)
+            If the package is not in the list above, pin to the version
+            recommended in the finding's remediation field.
+
+            **SAST — SQL Injection (string concatenation/format in query):**
+              Replace string concat with parameterized queries using ? placeholders.
+              e.g. db.execute(f"SELECT * FROM x WHERE id={id}")
+                → db.execute("SELECT * FROM x WHERE id = ?", (id,))
+
+            **SAST — Command Injection (subprocess shell=True / os.system):**
+              Replace with subprocess.run([cmd, arg1, ...], shell=False, check=True)
+
+            **SAST — XSS (unescaped user input in HTML response):**
+              Use markupsafe.escape() or return via Jinja2 template with autoescaping.
+
+            **SAST — CORS wildcard (Access-Control-Allow-Origin: *):**
+              Restrict to specific origins list or remove wildcard.
+
+            **SAST — Prompt Injection (user input in system prompt):**
+              Separate system and user messages. Sanitize input (strip control
+              chars, limit length to 500 chars).
+
+            **SAST — Hardcoded credentials / secrets:**
+              Replace with os.environ.get("VAR_NAME") or os.environ["VAR_NAME"].
+
+            **SAST — Docker socket access / credential files:**
+              These are typically in config files (docker-compose, devcontainer).
+              If the finding points to a non-application config file that cannot
+              be safely modified without breaking the dev environment, SKIP it
+              and list as "Skipped — infrastructure config, not application code."
+
+              Replace with subprocess.run([cmd, arg1, ...], shell=False, check=True)
+
+            **SAST — XSS (unescaped user input in HTML response):**
+              Use markupsafe.escape() or return via Jinja2 template with autoescaping.
+
+            **SAST — CORS wildcard (Access-Control-Allow-Origin: *):**
+              Restrict to specific origins list or remove wildcard.
+
+            **SAST — Prompt Injection (user input in system prompt):**
+              Separate system and user messages. Sanitize input (strip control
+              chars, limit length to 500 chars).
+
+            **SAST — Hardcoded credentials / secrets:**
+              Replace with os.environ.get("VAR_NAME") or os.environ["VAR_NAME"].
+
+            **SAST — Docker socket access / credential files:**
+              These are typically in config files (docker-compose, devcontainer).
+
+            REPORT_MD_B64=$(base64 /harness/.agent/output/agent-combined-out.txt | tr -d '\n')
+            printf 'REPORT_MD=B64%s\n' "$REPORT_MD_B64" >> "${HARNESS_OUTPUT:-/dev/null}"
+            printf 'REPORT_MD=B64%s\n' "$REPORT_MD_B64" >> "${DRONE_OUTPUT:-/dev/null}"
+
+            STOP after export. Do not run tests or iterate.
+
+            ## Anti-patterns — DO NOT do any of these
+            - DO NOT call harness_get for individual findings (list has all the data)
+            - DO NOT run pip install, pip index, or pip show to check versions
+            - DO NOT search for vulnerability patterns with grep/glob across the repo
+            - DO NOT read files that are not in the findings list
+            - DO NOT explore devcontainer, docker-compose, or CI config files
+            - DO NOT spend more than 3 turns on any single finding
+            - If a fix is unclear after reading the file, SKIP it and move on
+            | # | Source | Issue | Sev | File | Fix Applied |
+            |---|--------|-------|-----|------|-------------|
+
+            Source = SAST or SCA (from the finding type). Include skipped reasons.
+            
+            ## Step 4 — Export (MAX 2 turns)
+            
+            Write report to /harness/.agent/output/agent-combined-out.txt then:
+            REPORT_MD_B64=$(base64 /harness/.agent/output/agent-combined-out.txt | tr -d '\n') 
+            printf 'REPORT_MD=B64%s\n' "$REPORT_MD_B64" >> "${HARNESS_OUTPUT:-/dev/null}"
+            printf 'REPORT_MD=B64%s\n' "$REPORT_MD_B64" >> "${DRONE_OUTPUT:-/dev/null}"
+            
+            STOP after export. Do not run tests or iterate.
+            
+            ## Anti-patterns — DO NOT do any of these
+            - DO NOT call harness_get for individual findings (list has all the data)
+            - DO NOT run pip install, pip index, or pip show to check versions
+            - DO NOT search for vulnerability patterns with grep/glob across the repo
+            - DO NOT read files that are not in the findings list
+            - DO NOT explore devcontainer, docker-compose, or CI config files
+            - DO NOT spend more than 3 turns on any single finding
+            - If a fix is unclear after reading the file, SKIP it and move on
+
+        PLUGIN_MCP_FORMAT: harness
+        PLUGIN_MCP_SERVERS: <+connectorInputs.resolveList(<+inputs.mcpConnectors>)>
+        PLUGIN_MAX_TURNS: 35
+        ANTHROPIC_MODEL: ${{inputs.modelName}}
+        HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+  inputs:
+    llmConnector:
+      type: connector
+      required: true
+      default: account.harnessAnthropic
+      ui:
+        connectorCategories:
+          - AI
+    mcpConnectors:
+      type: array
+      default:
+        - mcp_harness_cristian
+        - mcp_github_cristian
+      ui:
+        component: array
+        input:
+          inputType: connector
+          inputConfig:
+            connectorTypes:
+              - Mcp
+    modelName:
+      type: string
+      default: claude-sonnet-4-6
+    repoOwner:
+      type: string
+      default: crizstian
+    repoName:
+      type: string
+      default: ai-agentic-demo
+  layout:
+    - title: Agent Configuration
+      items:
+        - llmConnector
+        - modelName
+        - mcpConnectors

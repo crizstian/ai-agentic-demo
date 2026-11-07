@@ -1,0 +1,113 @@
+version: 1
+agent:
+  step:
+    run:
+      container:
+        image: harness/harness-ai-agent:0.1.77
+        connector: DockerCristian
+      shell: sh
+      script: |
+        exec /opt/agent/entrypoint.sh
+      env:
+        PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
+        PLUGIN_TASK: |
+          You are a Test Engineer. Your task is to ensure the repo has robust unit test
+          coverage. Read source code via MCP tools, generate tests locally, and post
+          a summary comment on the PR.
+
+          ## Context
+          - Repo: <+inputs.repoOwner>/<+inputs.repoName>
+          - Repo URL: <+codebase.repoUrl>
+          - PR number: <+trigger.prNumber>
+          - Source branch: <+trigger.sourceBranch>
+          - Base branch: <+inputs.defaultBranch>
+          - Stack: Python, Flask, pytest
+          - Test directory: tests/
+
+          ## Platform Detection
+          You have both GitHub MCP and Harness Code MCP connectors.
+          Detect the platform from the Repo URL:
+          - Contains "github.com" → use GitHub MCP tools
+            (get_file_contents, create_issue_comment, etc.)
+          - Contains "git.harness.io" → use Harness MCP tools
+            (harness_get for file contents, harness_create with pr_comment for comments, etc.)
+
+          ## Instructions
+          1. Read existing test files via the detected platform's MCP tools (ref: <+trigger.sourceBranch>):
+             - tests/conftest.py, tests/test_health.py, tests/test_dashboard.py
+             - Count how many test functions exist (def test_*).
+          2. If 10+ tests already exist, skip to step 5.
+          3. Read the key source files via MCP tools to understand what to test:
+             - app/app.py, app/routes/accounts.py, app/routes/admin.py
+             - app/db.py, app/server.py
+             - app/routes/transfers.py, app/routes/fx.py, app/routes/statements.py
+          4. Generate happy-path unit tests to reach at least 10 total.
+             Write files to the LOCAL filesystem using the Write tool:
+             - /harness/tests/test_accounts.py — list accounts, get by ID, not found
+             - /harness/tests/test_admin.py — admin status, ping endpoint
+             - /harness/tests/test_transfers.py — transfer success, missing fields
+             - /harness/tests/test_app_routes.py — login page, welcome page, transfer page
+          5. Post a PR comment via the detected platform's MCP tools summarizing what was done:
+
+             ## Quality Agent — Unit Test Report
+             **Result**: [SUFFICIENT | GENERATED]
+             **Tests**: N existing + N new = N total
+
+             | File | Tests | Scenarios |
+             |------|-------|-----------|
+             | test_accounts.py | 3 | list, get, not found |
+             | ... | ... | ... |
+
+          CRITICAL RULES:
+          - Read source code via MCP tools (never import Python modules locally).
+          - Write test files to LOCAL filesystem (/harness/tests/).
+          - Do NOT commit, push, or create branches. Do NOT use create_or_update_file.
+            A separate pipeline step (Apply Fixes) handles git add + commit + push.
+            If you commit to the branch, each commit triggers a new pipeline run
+            that aborts the current execution.
+          - Do NOT run pip, pytest, or any local commands that import app modules.
+          - Do NOT modify production code (app/ files).
+          - STOP after posting the PR comment.
+        PLUGIN_MCP_FORMAT: harness
+        PLUGIN_MCP_SERVERS: <+connectorInputs.resolveList(<+inputs.mcpConnectors>)>
+        PLUGIN_MAX_TURNS: 25
+        HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+        ANTHROPIC_MODEL: ${{inputs.modelName}}
+  inputs:
+    llmConnector:
+      type: connector
+      required: true
+      default: account.harnessAnthropic
+      ui:
+        connectorCategories:
+          - AI
+    mcpConnectors:
+      type: array
+      default:
+        - mcp_harness_cristian
+        - mcp_github_cristian
+      ui:
+        component: array
+        input:
+          inputType: connector
+          inputConfig:
+            connectorTypes:
+              - Mcp
+    modelName:
+      type: string
+      default: claude-opus-4-5-20251101
+    repoOwner:
+      type: string
+      default: crizstian
+    repoName:
+      type: string
+      default: ai-agentic-demo
+    defaultBranch:
+      type: string
+      default: secops/ai-agentic-demo-main
+  layout:
+    - title: Agent Configuration
+      items:
+        - llmConnector
+        - modelName
+        - mcpConnectors

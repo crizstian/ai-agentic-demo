@@ -1,0 +1,143 @@
+version: 1
+agent:
+  step:
+    run:
+      container:
+        image: harness/harness-ai-agent:0.1.77
+      shell: sh
+      script: |
+        exec /opt/agent/entrypoint.sh
+      env:
+        PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
+        PLUGIN_TASK: |
+          You are a QA CSS Fixer. Playwright tests detected alignment defects.
+          Read CSS, check if bugs exist, fix only if needed, create PR, merge.
+
+          ## Context
+          Repo: <+inputs.repoOwner>/<+inputs.repoName>
+          Repo URL: <+codebase.repoUrl>
+          Deploy branch: <+inputs.defaultBranch>
+          Defects: <+pipeline.stages.External_Traffic.spec.execution.steps.UI_Alignment_Test.output.outputVariables.DEFECTS>
+          Jira: <+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>
+
+          ## Platform Detection
+          You have both GitHub MCP and Harness Code MCP connectors.
+          Detect the platform from the Repo URL:
+          - Contains "github.com" → use GitHub MCP tools
+            (get_file_contents, create_branch, create_or_update_file,
+             create_pull_request, merge_pull_request, create_issue_comment)
+          - Contains "git.harness.io" → use Harness MCP tools
+            (harness_get for file contents, harness_create for branches/commits/PRs,
+             harness_update to merge PRs, harness_create with pr_comment for comments)
+
+          ## Step 1 — Read CSS
+          Use the detected platform's MCP tools to read app/static/styles.css
+          (ref: <+inputs.defaultBranch>).
+          IMPORTANT: Save the file SHA from this response. You will reuse it in Step 5.
+
+          ## Step 2 — Bug Detection (MANDATORY before any other action)
+          Scan the CSS for these THREE bug patterns:
+            A) Any line containing "transform: rotate(" inside .action-card:nth-child rules
+            B) Any line containing "margin-left: 600px" inside .form-actions
+            C) The selector ".action-card:nth-child(2)" appears MORE than once in the file
+
+          If NONE of A, B, C are found: CSS is already correct.
+          Output: "CSS already correct — no fix needed."
+          STOP IMMEDIATELY. Do NOT create any branch, commit, or PR. Just STOP.
+
+          If ANY of A, B, C are found: continue to Step 3.
+
+          ## Step 3 — Apply Fixes
+
+          FIX A (rotated cards): In the FIRST .action-card:nth-child block (~lines 134-144):
+            Change each "transform: rotate(...)...;" to "transform: none;"
+            Keep selectors and rule structure intact.
+
+          FIX B (duplicate block): The SECOND .action-card:nth-child block appears
+          AFTER the #transfer-result rule (~lines 377-385). DELETE all lines of this
+          duplicate block entirely. After deletion, each .action-card:nth-child
+          selector must appear ONLY ONCE in the file.
+
+          FIX C (off-screen button): In .form-actions (~lines 283-287):
+            Replace ALL "margin-left: 600px" lines (may be 2 consecutive) with a
+            SINGLE line: margin-left: 0;
+
+          PRESERVE all CSS comments (/* ... */) exactly as they are.
+          PRESERVE all other properties unchanged.
+
+          ## Step 4 — Verify Modified Content
+          Search for "rotate(" in transform rules: must be ZERO.
+          Count ".action-card:nth-child(2)": must appear exactly ONCE.
+          Search for "margin-left: 600": must be ZERO.
+          If any check fails, go back and re-apply the fix.
+
+          ## Step 5 — Branch + Commit
+          Create branch: fix/qa-ui-alignment
+            Base: <+inputs.defaultBranch>
+          If create_branch fails because branch already exists, that is OK — continue.
+          Write the COMPLETE fixed CSS using the detected platform's MCP tools.
+          For GitHub: use create_or_update_file with the SHA from Step 1.
+          For Harness Code: use the appropriate commit/file update MCP operation.
+          Commit: "[QA-AUTO] fix: correct dashboard alignment detected by Playwright [<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>]"
+
+          ## Step 6 — PR + Merge
+          Create PR: fix/qa-ui-alignment to <+inputs.defaultBranch>
+          Title: "[QA-AUTO] fix: correct dashboard alignment detected by Playwright [<+pipeline.stages.CI.spec.execution.steps.Supply_Chain_Governance.steps.Extract_Jira_ID.output.outputVariables.JIRA_ID>]"
+          Merge PR immediately using the platform's MCP tools.
+          STOP. Deploy trigger fires automatically on merge.
+
+          ## HARD CONSTRAINTS
+          - NO delete_branch tool exists. Do NOT attempt branch deletion.
+          - Do NOT modify any file except app/static/styles.css.
+          - Do NOT remove or change CSS comments (/* ... */).
+          - Do NOT change margin-bottom, padding, gap, or any unlisted property.
+          - Commit message and PR title MUST contain "Playwright".
+          - PR title MUST start with "[QA-AUTO]".
+          - For GitHub: Do NOT re-read the file to get the SHA. Reuse it from Step 1.
+        PLUGIN_MCP_FORMAT: harness
+        PLUGIN_MCP_SERVERS: <+connectorInputs.resolveList(<+inputs.mcpConnectors>)>
+        PLUGIN_MAX_TURNS: ${{inputs.maxTurns}}
+        ANTHROPIC_MODEL: ${{inputs.modelName}}
+        HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+  inputs:
+    llmConnector:
+      type: connector
+      required: true
+      default: account.harnessAnthropic
+      ui:
+        connectorCategories:
+          - AI
+    mcpConnectors:
+      type: array
+      default:
+        - mcp_harness_cristian
+        - mcp_github_cristian
+      ui:
+        component: array
+        input:
+          inputType: connector
+          inputConfig:
+            connectorTypes:
+              - Mcp
+    modelName:
+      type: string
+      default: claude-sonnet-4-6
+    maxTurns:
+      type: string
+      default: "25"
+    repoOwner:
+      type: string
+      default: crizstian
+    repoName:
+      type: string
+      default: ai-agentic-demo
+    defaultBranch:
+      type: string
+      default: secops/ai-agentic-demo-main
+  layout:
+    - title: Agent Configuration
+      items:
+        - llmConnector
+        - modelName
+        - mcpConnectors
+        - maxTurns

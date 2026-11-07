@@ -153,8 +153,12 @@ Backend — crea app/routes/ai_assistant.py:
    — las keys deben ser "response", "financial_context" y "model" (AI Evals depende de esto).
 2. GET /api/ai/status — modelo, URL MCP, tools. Debug, sin auth.
 3. Gate con Harness FME flag "ai_chat_backend":
-   splitio_client, key: v4kvjbb2cuupu0ihed20iceumvv1m9po07bn
-   treatment != 'on' → 403
+   splitio_client, key desde env var SPLIT_SDK_KEY
+   (default: v4kvjbb2cuupu0ihed20iceumvv1m9po07bn).
+   treatment != 'on' → 403.
+   Si el SDK devuelve "control" (no conectó), hacer fallback
+   consultando la REST API de Split directamente con requests
+   (GET https://sdk.split.io/api/splitChanges?since=-1).
 4. Registra blueprint en app/app.py
 5. requirements.txt: openai, requests==2.28.0, httpx, splitio_client==10.6.0
 6. En deploy/k8s/demobank/deployment.yaml agrega un env var para
