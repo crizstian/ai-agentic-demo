@@ -14,6 +14,8 @@ OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://mcp-financial-data:5001")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-demo-key-replace-me")
 
+SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
+
 _split_factory = None
 
 
@@ -21,7 +23,7 @@ def _get_split_factory():
     global _split_factory
     if _split_factory is None:
         factory = get_factory(
-            "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn",
+            SPLIT_SDK_KEY,
             config={"connectionTimeout": 5, "readTimeout": 5},
         )
         try:
@@ -32,14 +34,37 @@ def _get_split_factory():
     return _split_factory
 
 
+def _check_feature_flag_rest():
+    """Fallback: query Split REST API directly when SDK fails."""
+    try:
+        resp = requests.get(
+            "https://sdk.split.io/api/splitChanges?since=-1",
+            headers={"Authorization": f"Bearer {SPLIT_SDK_KEY}"},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            for split in resp.json().get("splits", []):
+                if split.get("name") == "ai_chat_backend":
+                    return split.get("defaultTreatment") == "on" or any(
+                        p.get("treatment") == "on" and p.get("size", 0) == 100
+                        for c in split.get("conditions", [])
+                        for p in c.get("partitions", [])
+                    )
+    except Exception:
+        pass
+    return False
+
+
 def _check_feature_flag():
     try:
         factory = _get_split_factory()
         client = factory.client()
         treatment = client.get_treatment("demobank-server", "ai_chat_backend")
-        return treatment == "on"
+        if treatment != "control":
+            return treatment == "on"
     except Exception:
-        return False
+        pass
+    return _check_feature_flag_rest()
 
 
 def _get_mcp_context(message, account_ids):
