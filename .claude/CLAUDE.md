@@ -1,5 +1,15 @@
 # ai-agentic-demo — AI Development Environment
 
+## Brain (Persistent Context)
+
+Before starting any task, read the Brain files in `.claude/brain/`:
+- `decisions.md` — architectural decisions that must be respected
+- `constraints.md` — hard/soft constraints and known anti-patterns
+- `patterns.md` — validated code patterns with rationale
+
+These files consolidate lessons learned across 25+ sessions. Ignoring them
+leads to repeated mistakes (wrong SDK keys, wasted agent turns, broken CSS).
+
 ## Shared Rules
 
 - **Parallel tool calls:** COMPULSORY for independent operations

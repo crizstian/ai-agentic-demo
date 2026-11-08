@@ -1,0 +1,76 @@
+apiVersion: factory.demobank/v1
+kind: Spec
+metadata:
+  id: PREFLIGHT-001
+  title: "Pre-flight Check — Validate Demo Readiness"
+  act: pre
+  owner: presenter / cron
+  riskTier: A0
+
+spec:
+  purpose: >
+    Validar que todos los sistemas estan operativos antes de un demo.
+    Detecta problemas (Split auth, MCP caido, flags incorrectos) antes
+    de que el presenter este en vivo.
+
+  what_user_can_do:
+    - "Ejecutar check completo y recibir PASS/FAIL por sistema"
+    - "Saber exactamente que esta roto antes de empezar"
+
+  checks:
+    connectivity:
+      - name: "App health"
+        cmd: "curl -s -o /dev/null -w '%{http_code}' http://demobank-e2e.selatam.harness-demo.site/health"
+        expect: "200"
+      - name: "Split API"
+        cmd: "curl -s -o /dev/null -w '%{http_code}' 'https://sdk.split.io/api/splitChanges?since=-1' -H 'Authorization: Bearer v4kvjbb2cuupu0ihed20iceumvv1m9po07bn'"
+        expect: "200"
+      - name: "MCP Financial Data"
+        cmd: "curl -s -o /dev/null -w '%{http_code}' http://mcp-financial-data:5001/health"
+        expect: "200"
+
+    feature_flags:
+      - name: "ai_chat_enabled"
+        source: "Split API"
+        expect_act0: "OFF (defaultTreatment=off)"
+        expect_act4_plus: "ON (partition on=100%)"
+      - name: "ai_chat_backend"
+        source: "Split API"
+        expect_act0: "OFF"
+        expect_act4_plus: "ON"
+
+    secrets:
+      - name: "harnessToken"
+        check: "Harness MCP accessible (agent auth)"
+      - name: "CristianGithub"
+        check: "gh auth status returns authenticated"
+
+    pipeline:
+      - name: "AI_SDLC_DemoBank exists"
+        check: "Harness MCP pipeline list"
+      - name: "Last run status"
+        check: "Not failed/running"
+
+  expected_result:
+    output: |
+      === Pre-flight Check ===
+      [PASS] App health: 200
+      [PASS] Split API: 200
+      [PASS/FAIL] MCP Financial Data: 200/timeout
+      [PASS] ai_chat_enabled: OFF (correct for Act 0)
+      [PASS] ai_chat_backend: OFF (correct for Act 0)
+      [PASS] GitHub auth: authenticated
+      [PASS] Pipeline: last run succeeded
+      ---
+      Result: READY (7/7 passed)
+
+  how_to_demonstrate:
+    automated:
+      - cmd: "scripts/preflight-check.sh"
+        expect: "Exit 0, all checks PASS"
+    manual:
+      - step: "Leer output del script"
+        expect: "Cada linea dice PASS o FAIL con detalle"
+
+  budget:
+    estimated_time: "10-15 segundos"
