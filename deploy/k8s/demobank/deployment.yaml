@@ -65,6 +65,11 @@ spec:
                 configMapKeyRef:
                   name: harnessbank-demo-end2end-config
                   key: AI_CHAT_ENABLED
+            - name: SELF_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: SELF_URL
 
           ports:
             - containerPort: {{ .Values.containerPort }}

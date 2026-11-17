@@ -123,16 +123,42 @@ Harness) se integran antes de crear ningun Expert.
 ## Steps Pendientes
 
 ### Step 5: Crear Environment + Experts en Cosmos
-- Prompts documentados en `docs/cosmos-setup-prompts.md`
-- Pre-req: cuenta Cosmos activa, integraciones GitHub + Slack + Jira
-- Setup order: Environment → Spec Writer → Builder → Reviewers → Approver
-- Todos empiezan con automation OFF, activar despues de test manual
-- Test de validacion: tarea simple (GET /api/version)
+
+**5a: Claude Code agents alineados a Cosmos Experts (2026-11-08)** ✅
+- Eliminados 7 agents locales genéricos (architecture-reviewer, code-reviewer, k8s-debugger, pr-preparer, refactorer, researcher, test-writer)
+- Creados 5 agents que reflejan el factory inner loop:
+  - `spec-writer` (Opus) — ASDD spec generation
+  - `builder` (Opus) — TDD implementation
+  - `security-reviewer` (Sonnet) — pre-PR security review
+  - `code-reviewer` (Haiku) — pre-PR code quality + Brain consistency
+  - `approver` (Opus) — consolidate reviews, risk routing, PR creation
+- Cada agent incluye Brain references, scope limits, output format
+
+**5b: Setup en Cosmos Platform (2026-11-08)** ✅
+- Space: **CristianRamirezSE**, Environment: `ai-agentic-demo`
+- Guia completa con prompts y valores: `docs/cosmos-setup-guide.md`
+- 5 Experts creados, todos con automation **OFF**:
+
+| Expert | Expert ID | Modelo | Trigger |
+|--------|-----------|--------|---------|
+| Spec Writer | `e60696ba-fdfe-4497-9acd-f017ff5fa9ae` | Opus 5.5 | GitHub issue `label:factory` + Slack mention (disabled) |
+| Builder | `1c01b3ab-9cfc-4a70-a8ac-e62ff0a17422` | Opus 5.5 | Slack mention (disabled) |
+| Security Reviewer | `f7de9a8f-0643-4888-80e4-f24b8956bcda` | Sonnet 5.5 | Slack mention (disabled) |
+| Code Reviewer | `f7fbc81a-8bc3-4ba7-ac24-3eb47332f0e7` | Haiku 5.5 | Slack mention (disabled) |
+| Approver | `43a35b12-7470-49dc-a4ee-82a39b94e2b6` | Opus 5.5 | Slack mention (disabled) |
+
+- **Limitaciones descubiertas**:
+  - Slash commands (`/factory spec`) no existen como trigger nativo — solo menciones Slack
+  - No hay evento "Builder terminó" para encadenar reviewers — handoff manual
+  - Auto-trigger de Slack del propio agente crearia loop — mantener manual
+- **Handoff manual**: lanzar cada Expert desde su URL directa o mencion Slack
 
 ### Step 6: Test del Factory Loop Completo
-- Enviar tarea via Slack → Spec Writer → Builder → Reviewers → Approver → PR
-- Validar fix loop (forzar un finding, verificar que el Builder arregla)
-- Validar risk routing (low risk = auto, high risk = Slack a humano)
+- Guia de validacion manual: `docs/cosmos-validation-manual.md`
+- Tarea de test: GET /api/version (low risk, sin auth, sin DB)
+- Lanzar cada Expert desde su URL directa, en orden
+- Handoff manual: copiar output de cada Expert al siguiente
+- Validar: spec ASDD, TDD, JSON findings, risk classification, PR target
 
 ### Step 7: Conectar Inner → Outer Loop
 - PR del Approver triggerea pipeline Harness automaticamente
@@ -161,3 +187,8 @@ Harness) se integran antes de crear ningun Expert.
 | 2026-11-08 | Modelos diversos en reviewers | Transcript: "Opus se sesgaria revisandose a si mismo". Security=Sonnet, Code=Haiku |
 | 2026-11-08 | v1 con 5 Experts, UX/UI reviewers en v2 | Validar flujo core primero, agregar reviewers especializados despues |
 | 2026-11-08 | Brain en Cosmos Files, bridge via .claude/brain/ | Mismo contenido, dos puntos de acceso: Cosmos Experts y Claude Code local |
+| 2026-11-08 | Handoff manual entre Experts | Cosmos no tiene evento "Expert terminó" — auto-trigger via Slack crea loops. Manual hasta tener canal dedicado |
+| 2026-11-08 | No slash commands en triggers | `/factory spec` no existe nativo — solo menciones Slack como trigger |
+| 2026-11-08 | Modelos Cosmos son 5.5 (Opus/Sonnet/Haiku 5.5) | Versiones actuales de la plataforma, no las genericas |
+| 2026-11-08 | No subir Files al Environment | Experts leen Brain del repo directamente — evita contexto pre-cargado que sesga |
+| 2026-11-08 | Claude Code agents alineados 1:1 con Cosmos Experts | Mismos 5 roles, mismos prompts — workflow local simula factory flow |

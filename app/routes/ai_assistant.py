@@ -1,6 +1,8 @@
+import json
 import os
 
 import requests
+import urllib3
 from flask import Blueprint, jsonify, request
 from openai import OpenAI
 from splitio import get_factory
@@ -8,15 +10,16 @@ from splitio.exceptions import TimeoutException
 
 from ..db import get_db
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 ai_bp = Blueprint("ai", __name__)
 
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://mcp-financial-data:5001")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-demo-key-replace-me")
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", None)
+SELF_URL = os.environ.get("SELF_URL", "https://demobank-e2e.selatam.harness-demo.site")
 FF_OVERRIDE = os.environ.get("AI_CHAT_ENABLED", None)
-
-SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
 
 SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
 
@@ -73,6 +76,26 @@ def _check_feature_flag():
     return _check_feature_flag_rest()
 
 
+def _execute_tool_call(tool_call):
+    """Execute an agent tool call by routing through nginx (SELF_URL) for Traceable visibility."""
+    name = tool_call.function.name
+    args = json.loads(tool_call.function.arguments)
+
+    if name == "get_account":
+        url = f"{SELF_URL}/api/accounts/{args['account_id']}"
+    elif name == "list_accounts":
+        url = f"{SELF_URL}/api/accounts"
+    else:
+        return json.dumps({"error": f"Unknown tool: {name}"})
+
+    print(f"[AI-AGENT] Tool call: {name}({args}) -> {url}")
+    try:
+        resp = requests.get(url, verify=False, timeout=10)
+        return resp.text
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 def _get_mcp_context(message, account_ids):
     try:
         payload = {
@@ -119,18 +142,55 @@ def chat():
     if OPENAI_BASE_URL:
         client_kwargs["base_url"] = OPENAI_BASE_URL
     client = OpenAI(**client_kwargs)
-    completion = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[{"role": "user", "content": full_prompt}],
-    )
+
+    messages = [{"role": "user", "content": full_prompt}]
+    completion = client.chat.completions.create(model=OPENAI_MODEL, messages=messages)
+    assistant_message = completion.choices[0].message
+    agent_actions = 0
+
+    if assistant_message.tool_calls:
+        agent_actions = len(assistant_message.tool_calls)
+        print(f"[AI-AGENT] Received {agent_actions} tool_calls — executing through nginx")
+
+        tool_results = []
+        for tc in assistant_message.tool_calls:
+            result = _execute_tool_call(tc)
+            tool_results.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+
+        followup_messages = messages + [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in assistant_message.tool_calls
+                ],
+            },
+            *tool_results,
+        ]
+        completion = client.chat.completions.create(model=OPENAI_MODEL, messages=followup_messages)
+        assistant_message = completion.choices[0].message
 
     return jsonify(
         {
-            "response": completion.choices[0].message.content,
+            "response": assistant_message.content,
             "financial_context": financial_context,
             "model": OPENAI_MODEL,
+            "agent_actions": agent_actions,
         }
     )
+
+
+@ai_bp.route("/reset", methods=["POST"])
+def reset_agent():
+    """Reset the rogue agent conversation back to step 0."""
+    try:
+        base = OPENAI_BASE_URL or "http://mock-openai:5002/v1"
+        reset_url = base.rstrip("/").rsplit("/v1", 1)[0] + "/v1/reset"
+        resp = requests.post(reset_url, timeout=5)
+        return jsonify(resp.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @ai_bp.route("/status", methods=["GET"])
