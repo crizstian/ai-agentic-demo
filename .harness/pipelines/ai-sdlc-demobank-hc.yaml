@@ -315,6 +315,20 @@ pipeline:
                               dockerfile: services/mcp-financial-data/Dockerfile
                               context: services/mcp-financial-data
                           contextType: Pipeline
+                        - step:
+                            type: BuildAndPushDockerRegistry
+                            name: Build Mock OpenAI
+                            identifier: Build_MockOpenAI
+                            spec:
+                              connectorRef: DockerCristian
+                              repo: docker.io/<+pipeline.variables.mockOpenaiImage>
+                              tags:
+                                - latest
+                                - <+pipeline.sequenceId>
+                              caching: true
+                              dockerfile: services/mock-openai/Dockerfile
+                              context: services/mock-openai
+                          contextType: Pipeline
                     - parallel:
                         - step:
                             type: SscaOrchestration
@@ -365,6 +379,30 @@ pipeline:
                                   cpu: "0.5"
                           contextType: Pipeline
                         - step:
+                            type: SscaOrchestration
+                            name: SBOM Mock OpenAI
+                            identifier: SBOM_MockOpenAI
+                            spec:
+                              mode: generation
+                              tool:
+                                type: cdxgen
+                                spec:
+                                  format: cyclonedx-json
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mockOpenaiImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                          contextType: Pipeline
+                        - step:
                             type: provenance
                             name: SLSA DemoBank
                             identifier: SLSA_DemoBank
@@ -401,6 +439,24 @@ pipeline:
                                   memory: 500Mi
                                   cpu: "0.5"
                         - step:
+                            type: provenance
+                            name: SLSA Mock OpenAI
+                            identifier: SLSA_MockOpenAI
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  repo: docker.io/<+pipeline.variables.mockOpenaiImage>:<+pipeline.sequenceId>
+                              attestation:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
                             type: SscaArtifactSigning
                             name: Artifact DemoBank
                             identifier: Artifact_DemoBank
@@ -428,6 +484,24 @@ pipeline:
                                 spec:
                                   connector: DockerCristian
                                   image: docker.io/<+pipeline.variables.mcpImage>:<+pipeline.sequenceId>
+                              signing:
+                                type: keyless
+                                spec:
+                                  oidcProvider: harness
+                              resources:
+                                limits:
+                                  memory: 500Mi
+                                  cpu: "0.5"
+                        - step:
+                            type: SscaArtifactSigning
+                            name: Artifact Mock OpenAI
+                            identifier: Artifact_MockOpenAI
+                            spec:
+                              source:
+                                type: docker
+                                spec:
+                                  connector: DockerCristian
+                                  image: docker.io/<+pipeline.variables.mockOpenaiImage>:<+pipeline.sequenceId>
                               signing:
                                 type: keyless
                                 spec:
@@ -1096,6 +1170,66 @@ pipeline:
           pipelineStatus: Success
           condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
     - stage:
+        name: Deploy Mock OpenAI
+        identifier: Deploy_MockOpenAI
+        description: Deploy Mock OpenAI service for AI Chat demo (simulates LLM responses)
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: mock_openai_hc
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  manifests:
+                    - manifest:
+                        identifier: mock_openai_manifests
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: HarnessCode
+                            spec:
+                              repoName: <+pipeline.variables.repoName>
+                              branch: <+pipeline.variables.defaultBranch>
+                  artifacts:
+                    primary:
+                      sources:
+                        - identifier: mock_openai_image
+                          type: DockerRegistry
+                          spec:
+                            imagePath: <+pipeline.variables.mockOpenaiImage>
+                            tag: <+pipeline.variables.imageTag>
+          environment:
+            useFromStage:
+              stage: Deploy_DemoBank
+          execution:
+            steps:
+              - step:
+                  name: Rolling Deployment
+                  identifier: rollingDeployment
+                  type: K8sRollingDeploy
+                  timeout: 10m
+                  spec:
+                    skipDryRun: false
+            rollbackSteps:
+              - step:
+                  name: Rolling Rollback
+                  identifier: rollingRollback
+                  type: K8sRollingRollback
+                  timeout: 10m
+                  spec: {}
+        tags: {}
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+        when:
+          pipelineStatus: Success
+          condition: (<+codebase.build.type> == "branch" && <+codebase.branch> == "<+pipeline.variables.defaultBranch>")
+    - stage:
         name: QA Tests
         identifier: External_Traffic
         description: Generate N-S traffic from Harness Cloud for Traceable API discovery and baseline learning
@@ -1289,6 +1423,11 @@ pipeline:
       description: Docker image path for MCP Financial Data service (owner/image)
       required: false
       value: <+input>.default(crizstian/mcp-financial-data)
+    - name: mockOpenaiImage
+      type: String
+      description: Docker image path for Mock OpenAI service (owner/image)
+      required: false
+      value: <+input>.default(crizstian/mock-openai)
     - name: gitTokenSecret
       type: String
       description: Secret name for git push authentication (CristianGithub for GitHub, harnessToken for Harness Code)

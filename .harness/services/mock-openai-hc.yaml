@@ -1,0 +1,40 @@
+service:
+  name: mock-openai-hc
+  identifier: mock_openai_hc
+  orgIdentifier: sandbox
+  projectIdentifier: CristianRamirez
+  description: Mock OpenAI API service — simulates LLM responses for AI Chat demo without real API key
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: mock_openai_manifests
+            type: K8sManifest
+            spec:
+              store:
+                type: HarnessCode
+                spec:
+                  repoName: <+input>.default(ai-agentic-demo)
+                  gitFetchType: Branch
+                  branch: <+input>.default(secops/ai-agentic-demo-main)
+                  paths:
+                    - deploy/k8s/mock-openai/deployment.yaml
+                    - deploy/k8s/mock-openai/service.yaml
+              valuesPaths:
+                - deploy/k8s/mock-openai/values.yaml
+              skipResourceVersioning: false
+      artifacts:
+        primary:
+          primaryArtifactRef: mock_openai_image
+          sources:
+            - identifier: mock_openai_image
+              type: DockerRegistry
+              spec:
+                connectorRef: DockerCristian
+                imagePath: <+input>.default(crizstian/mock-openai)
+                tag: <+input>
+  tags:
+    app: mock-openai
+    tier: internal
+    repo: harness-code

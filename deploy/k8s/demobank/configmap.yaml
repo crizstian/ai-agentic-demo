@@ -12,3 +12,5 @@ data:
   MCP_SERVER_URL: "http://mcp-financial-data:5001"
   # Required by deployment.yaml configMapKeyRef for the OpenAI client
   OPENAI_API_KEY: "sk-placeholder-for-demo"
+  OPENAI_BASE_URL: "http://mock-openai:5002/v1"
+  AI_CHAT_ENABLED: "true"

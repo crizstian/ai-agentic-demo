@@ -55,6 +55,16 @@ spec:
                 configMapKeyRef:
                   name: harnessbank-demo-end2end-config
                   key: OPENAI_API_KEY
+            - name: OPENAI_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: OPENAI_BASE_URL
+            - name: AI_CHAT_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: harnessbank-demo-end2end-config
+                  key: AI_CHAT_ENABLED
 
           ports:
             - containerPort: {{ .Values.containerPort }}
