@@ -1,0 +1,64 @@
+apiVersion: factory.demobank/v1
+kind: Spec
+metadata:
+  id: ACT0-001
+  title: "Demo Reset — Restore to STATE 0"
+  act: 0
+  prompt_ref: "scripts/demo-reset.sh"
+  owner: presenter / cron
+  riskTier: A0
+
+spec:
+  purpose: >
+    Restaurar el ambiente DemoBank a STATE 0 limpio antes de cada demo.
+    Idempotente — puede ejecutarse multiples veces sin side effects.
+
+  what_user_can_do:
+    - "Ejecutar reset completo con un comando"
+    - "Verificar que el ambiente esta listo para Act 1"
+
+  starting_conditions:
+    - "Cualquier estado del repo (post Act 1-7, dirty, etc.)"
+
+  expected_result:
+    repo:
+      - "app/ restaurado desde main (STATE 0)"
+      - "app/routes/ai_assistant.py eliminado"
+      - "requirements.txt sin openai, splitio_client"
+      - "dashboard.html sin chat widget"
+      - "styles.css sin reglas de chat"
+    database:
+      - "Exactamente 3 seed accounts"
+      - "No transacciones extras"
+    flags:
+      - "ai_chat_enabled: OFF"
+      - "ai_chat_backend: OFF"
+    endpoints:
+      - "/api/ai/chat: 404 (ruta no existe)"
+      - "/health: 200"
+    branches:
+      - "secops/ai-agentic-demo: commit de reset"
+      - "secops/ai-agentic-demo-main: reset al mismo commit"
+      - "secops/ai-agentic-demo-deploy: reset al mismo commit"
+
+  must_respect:
+    - "Usar scripts/demo-reset.sh, NUNCA git checkout manual"
+    - "Preservar: docs/, deploy/, .harness/, scripts/, policies/"
+    - "16 invariantes verificados por el script"
+
+  how_to_demonstrate:
+    automated:
+      - cmd: "./scripts/demo-reset.sh --db --commit --push"
+        expect: "Exit 0, all invariants pass"
+      - cmd: "curl -s http://demobank-e2e.selatam.harness-demo.site/health"
+        expect: "200 OK"
+      - cmd: "curl -s -o /dev/null -w '%{http_code}' -X POST http://demobank-e2e.selatam.harness-demo.site/api/ai/chat"
+        expect: "404 (ruta no existe post-reset)"
+    manual:
+      - step: "Abrir dashboard en browser"
+        expect: "Sin chat widget"
+      - step: "Verificar Split flags"
+        expect: "Ambos OFF"
+
+  budget:
+    estimated_time: "2-3 minutos"

@@ -13,6 +13,10 @@ ai_bp = Blueprint("ai", __name__)
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o")
 MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://mcp-financial-data:5001")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "sk-demo-key-replace-me")
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", None)
+FF_OVERRIDE = os.environ.get("AI_CHAT_ENABLED", None)
+
+SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
 
 SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
 
@@ -56,6 +60,8 @@ def _check_feature_flag_rest():
 
 
 def _check_feature_flag():
+    if FF_OVERRIDE is not None:
+        return FF_OVERRIDE.lower() in ("1", "true", "on")
     try:
         factory = _get_split_factory()
         client = factory.client()
@@ -109,7 +115,10 @@ def chat():
 
     full_prompt = base_prompt + message
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client_kwargs = {"api_key": OPENAI_API_KEY}
+    if OPENAI_BASE_URL:
+        client_kwargs["base_url"] = OPENAI_BASE_URL
+    client = OpenAI(**client_kwargs)
     completion = client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[{"role": "user", "content": full_prompt}],
