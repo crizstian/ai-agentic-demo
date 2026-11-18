@@ -26,6 +26,8 @@ FF_OVERRIDE = os.environ.get("AI_CHAT_ENABLED", None)
 SPLIT_SDK_KEY = os.environ.get("SPLIT_SDK_KEY", "v4kvjbb2cuupu0ihed20iceumvv1m9po07bn")
 
 _split_factory = None
+_session_id = None
+_session_act = 0
 
 
 def _get_split_factory():
@@ -83,9 +85,11 @@ def _ai_headers(request_id, flow_step, **extra):
     h = {
         "User-Agent": "DemoBank-AI-Agent/1.0 (OpenAI-Function-Call)",
         "X-AI-Request-Id": request_id,
+        "X-AI-Session-Id": _session_id or "none",
         "X-AI-Agent": "true",
         "X-AI-Agent-Flow": flow_step,
         "X-AI-Agent-Model": OPENAI_MODEL,
+        "X-AI-Agent-Act": str(_session_act),
     }
     h.update(extra)
     return h
@@ -190,13 +194,20 @@ def chat():
     if not _check_feature_flag():
         return jsonify({"error": "AI chat is not enabled"}), 403
 
+    global _session_id, _session_act
+
     data = request.get_json(silent=True) or {}
     message = data.get("message", "")
     if not message:
         return jsonify({"error": "message is required"}), 400
 
+    if _session_id is None:
+        _session_id = f"session-{uuid.uuid4().hex[:8]}"
+        _session_act = 0
+    _session_act += 1
+
     request_id = f"ai-{uuid.uuid4().hex[:12]}"
-    print(f"[AI-AGENT] New request {request_id}: {message[:80]}")
+    print(f"[AI-AGENT] Session {_session_id} Act {_session_act} Request {request_id}: {message[:80]}")
 
     db = get_db()
     accounts = [dict(r) for r in db.execute("SELECT * FROM accounts").fetchall()]
@@ -241,6 +252,7 @@ def chat():
             agent_tools_log.append({"tool": name, "args": args})
             result = _execute_tool_call(tc, request_id, idx + 1)
             tool_results.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+        print(f"[AI-AGENT] {request_id}: Act {_session_act}, {agent_actions} tool calls completed")
 
         followup_messages = messages + [
             {
@@ -264,6 +276,8 @@ def chat():
             "agent_actions": agent_actions,
             "agent_tools": agent_tools_log,
             "request_id": request_id,
+            "session_id": _session_id,
+            "act": _session_act,
         }
     )
 
@@ -271,11 +285,17 @@ def chat():
 @ai_bp.route("/reset", methods=["POST"])
 def reset_agent():
     """Reset the rogue agent conversation back to step 0."""
+    global _session_id, _session_act
+    old_session = _session_id
+    _session_id = None
+    _session_act = 0
     try:
         base = OPENAI_BASE_URL or "http://mock-openai:5002/v1"
         reset_url = base.rstrip("/").rsplit("/v1", 1)[0] + "/v1/reset"
         resp = requests.post(reset_url, timeout=5)
-        return jsonify(resp.json())
+        result = resp.json()
+        result["previous_session"] = old_session
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
