@@ -49,4 +49,4 @@ injector:
       enabled: true
     region_blocking:
       enabled: true
-    skip_internal_request: true
+    skip_internal_request: false

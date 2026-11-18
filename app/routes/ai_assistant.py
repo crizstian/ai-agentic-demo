@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 
 import httpx
 import requests
@@ -77,7 +78,20 @@ def _check_feature_flag():
     return _check_feature_flag_rest()
 
 
-def _execute_tool_call(tool_call):
+def _ai_headers(request_id, flow_step, **extra):
+    """Build consistent AI tracing headers for Traceable correlation."""
+    h = {
+        "User-Agent": "DemoBank-AI-Agent/1.0 (OpenAI-Function-Call)",
+        "X-AI-Request-Id": request_id,
+        "X-AI-Agent": "true",
+        "X-AI-Agent-Flow": flow_step,
+        "X-AI-Agent-Model": OPENAI_MODEL,
+    }
+    h.update(extra)
+    return h
+
+
+def _execute_tool_call(tool_call, request_id, tool_index):
     """Execute an agent tool call by routing through nginx (SELF_URL) for Traceable visibility."""
     name = tool_call.function.name
     args = json.loads(tool_call.function.arguments)
@@ -89,12 +103,11 @@ def _execute_tool_call(tool_call):
     else:
         return json.dumps({"error": f"Unknown tool: {name}"})
 
-    headers = {
-        "User-Agent": "DemoBank-AI-Agent/1.0 (OpenAI-Function-Call)",
-        "X-AI-Agent": "true",
-        "X-AI-Agent-Tool": name,
-        "X-AI-Agent-Model": OPENAI_MODEL,
-    }
+    headers = _ai_headers(
+        request_id,
+        f"tool-call:{tool_index}",
+        **{"X-AI-Agent-Tool": name},
+    )
     print(f"[AI-AGENT] Tool call: {name}({args}) -> {url}")
     try:
         resp = requests.get(url, headers=headers, verify=False, timeout=10)
@@ -103,12 +116,30 @@ def _execute_tool_call(tool_call):
         return json.dumps({"error": str(e)})
 
 
-def _get_mcp_context(message, account_ids):
+def _get_mcp_context(message, account_ids, request_id):
+    """Enrich via MCP, routed through nginx for Traceable visibility."""
+    payload = {
+        "query": message,
+        "context": {"accounts": [{"id": aid} for aid in account_ids]},
+    }
+    headers = _ai_headers(request_id, "mcp-enrich")
+    headers["Content-Type"] = "application/json"
+
     try:
-        payload = {
-            "query": message,
-            "context": {"accounts": [{"id": aid} for aid in account_ids]},
-        }
+        resp = requests.post(
+            f"{SELF_URL}/api/ai/mcp/enrich",
+            json=payload,
+            headers=headers,
+            verify=False,
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+
+    # Fallback: direct pod-to-pod if proxy unavailable
+    try:
         resp = requests.post(
             f"{MCP_SERVER_URL}/api/enrich", json=payload, timeout=5
         )
@@ -120,6 +151,22 @@ def _get_mcp_context(message, account_ids):
 
 
 LLM_INTERNAL_URL = OPENAI_BASE_URL or "http://mock-openai:5002/v1"
+
+
+@ai_bp.route("/mcp/enrich", methods=["POST"])
+def mcp_proxy():
+    """Proxy MCP enrichment calls — routed through nginx so Traceable sees MCP interactions."""
+    body = request.get_json(silent=True) or {}
+    try:
+        resp = requests.post(
+            f"{MCP_SERVER_URL}/api/enrich",
+            json=body,
+            headers={"Content-Type": "application/json"},
+            timeout=5,
+        )
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 @ai_bp.route("/llm/v1/chat/completions", methods=["POST"])
@@ -148,11 +195,14 @@ def chat():
     if not message:
         return jsonify({"error": "message is required"}), 400
 
+    request_id = f"ai-{uuid.uuid4().hex[:12]}"
+    print(f"[AI-AGENT] New request {request_id}: {message[:80]}")
+
     db = get_db()
     accounts = [dict(r) for r in db.execute("SELECT * FROM accounts").fetchall()]
     account_ids = [a["id"] for a in accounts]
 
-    financial_context = _get_mcp_context(message, account_ids)
+    financial_context = _get_mcp_context(message, account_ids, request_id)
 
     # DEMO VULNERABILITY: prompt injection — user input concatenated directly into prompt (VULN-PROMPT-INJECTION)
     base_prompt = (
@@ -167,7 +217,10 @@ def chat():
     client = OpenAI(
         api_key=OPENAI_API_KEY,
         base_url=f"{SELF_URL}/api/ai/llm/v1",
-        http_client=httpx.Client(verify=False),
+        http_client=httpx.Client(
+            verify=False,
+            headers=_ai_headers(request_id, "llm-call"),
+        ),
     )
 
     messages = [{"role": "user", "content": full_prompt}]
@@ -179,14 +232,14 @@ def chat():
 
     if assistant_message.tool_calls:
         agent_actions = len(assistant_message.tool_calls)
-        print(f"[AI-AGENT] Received {agent_actions} tool_calls — executing through nginx")
+        print(f"[AI-AGENT] {request_id}: {agent_actions} tool_calls — executing through nginx")
 
         tool_results = []
-        for tc in assistant_message.tool_calls:
+        for idx, tc in enumerate(assistant_message.tool_calls):
             name = tc.function.name
             args = json.loads(tc.function.arguments)
             agent_tools_log.append({"tool": name, "args": args})
-            result = _execute_tool_call(tc)
+            result = _execute_tool_call(tc, request_id, idx + 1)
             tool_results.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
         followup_messages = messages + [
@@ -210,6 +263,7 @@ def chat():
             "model": OPENAI_MODEL,
             "agent_actions": agent_actions,
             "agent_tools": agent_tools_log,
+            "request_id": request_id,
         }
     )
 
