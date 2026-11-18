@@ -1,0 +1,62 @@
+apiVersion: factory.demobank/v1
+kind: Spec
+metadata:
+  id: ACT3-001
+  title: "Security Remediation — Fix SAST + SCA Findings"
+  act: 3
+  prompt_ref: "docs/prompts/act-3-prompt-card.md"
+  owner: security_analyzer (worker agent)
+  riskTier: A1
+
+spec:
+  purpose: >
+    Worker agent security_analyzer lee findings de pipeline (SAST+SCA),
+    auto-remedia los primeros 4 CRITICAL/HIGH, crea PR con fixes.
+
+  what_user_can_do:
+    - "Observar al agente remediando vulnerabilidades en tiempo real"
+    - "Ver PR con fixes aplicados y reporte de remediacion"
+
+  starting_conditions:
+    - "Pipeline CI completo con SAST (Semgrep) y SCA (OWASP) ejecutados"
+    - "Findings disponibles via pipeline_security_issue API"
+    - "Branch con codigo de Act 1 (ai_assistant.py con vulns)"
+
+  expected_result:
+    fixes:
+      - vuln: VULN-PROMPT-INJECTION
+        fix: "Separar user input del system prompt, usar messages array"
+      - vuln: VULN-PII-LEAK
+        fix: "Filtrar financial_context antes de incluir en response"
+      - vuln: VULN-SECRET-LEAK
+        fix: "Remover default hardcoded, usar solo env var"
+      - vuln: VULN-REQUESTS-CVE
+        fix: "Actualizar requests a >=2.31.0"
+    pr:
+      title_contains: ["security", "remediation"]
+      comment: "Remediation report con findings resueltos"
+
+  must_respect:
+    - "Solo remediar primeros 4 findings CRITICAL/HIGH"
+    - "Max 35 turns — si no termina, parar y reportar parcial"
+    - "No usar pip install X==9999.0.0 para descubrir versiones"
+    - "No modificar archivos fuera del scope de los findings"
+    - "Usar fix versions hardcodeadas del brain, no buscar online"
+    - "Consultar pipeline_security_issue API (no security_issue)"
+    - "Filter keys: severity_codes='Critical,High', issue_types='..'"
+
+  how_to_demonstrate:
+    automated:
+      - cmd: "pytest tests/ -q"
+        expect: "all tests pass post-fix"
+      - cmd: "grep 'requests>=' requirements.txt"
+        expect: "version >= 2.31.0"
+    manual:
+      - step: "Verificar PR comment con reporte de remediacion"
+        expect: "4 findings listados con status fixed"
+      - step: "Re-run pipeline en PR con fixes"
+        expect: "SAST findings reducidos, SCA CVE resuelto"
+
+  budget:
+    max_agent_turns: 35
+    estimated_cost: "$1-2 USD"

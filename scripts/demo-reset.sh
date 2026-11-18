@@ -619,7 +619,15 @@ EOF
 fi
 
 # =========================================================================
-# 7. Summary
+# 7. Post-reset pre-flight check (automatic)
+# =========================================================================
+if [[ "$CHECKS_PASS" == true ]] && [[ -x "$SCRIPT_DIR/preflight-check.sh" ]]; then
+    echo -e "${CYAN}--- Running post-reset pre-flight check ---${NC}"
+    "$SCRIPT_DIR/preflight-check.sh" --full || true
+fi
+
+# =========================================================================
+# 8. Summary
 # =========================================================================
 echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
 echo -e "${CYAN}║              Summary                     ║${NC}"

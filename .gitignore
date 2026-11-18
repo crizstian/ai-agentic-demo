@@ -14,4 +14,5 @@ workshop_pipelines/
 .claude/settings.local.json
 .claude/memory/
 
-workshop_pipelines/
+workshop_pipelines/.augment/settings.local.json
+.augment/settings.local.json

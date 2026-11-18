@@ -1,0 +1,125 @@
+apiVersion: factory.demobank/v1
+kind: Spec
+metadata:
+  id: ACT1-001
+  title: "AI Banking Assistant — Backend + Frontend + PR"
+  act: 1
+  prompt_ref: "docs/demo-prompts-consolidated.md#1.1"
+  owner: presenter
+  riskTier: A1
+
+spec:
+  purpose: >
+    Agregar un asistente AI al dashboard de DemoBank con vulnerabilidades
+    intencionales que seran detectadas en Act 3 (Security Remediation).
+
+  what_user_can_do:
+    - "POST /api/ai/chat con {message: '...'} → respuesta AI con contexto financiero"
+    - "GET /api/ai/status → metadata del modelo y MCP (debug endpoint, sin auth)"
+    - "Ver widget de chat flotante en dashboard cuando flag ai_chat_enabled esta ON"
+    - "Enviar mensajes via widget y recibir respuestas inline"
+
+  starting_conditions:
+    - "Branch secops/ai-agentic-demo en STATE 0 (post-reset)"
+    - "Feature flags ai_chat_enabled y ai_chat_backend estan OFF"
+    - "No existe app/routes/ai_assistant.py"
+    - "Jira project HD accesible"
+
+  expected_result:
+    backend:
+      files_created:
+        - "app/routes/ai_assistant.py"
+      files_modified:
+        - "app/app.py (registrar blueprint)"
+        - "requirements.txt (agregar deps)"
+        - "deploy/k8s/demobank/deployment.yaml (agregar OPENAI_API_KEY env var)"
+      api_response:
+        endpoint: "POST /api/ai/chat"
+        request: '{"message": "hello"}'
+        status_flag_on: 200
+        status_flag_off: 403
+        body_keys: ["response", "financial_context", "model"]
+        body_keys_note: "AI Evals depende de estas keys exactas"
+      status_endpoint:
+        endpoint: "GET /api/ai/status"
+        status: 200
+        body_keys: ["model", "mcp_server_url", "tools"]
+
+    frontend:
+      files_modified:
+        - "app/templates/dashboard.html (widget + Split JS SDK)"
+        - "app/static/styles.css (SOLO agregar reglas nuevas al final)"
+        - "app/static/app.js (chat logic)"
+      behavior:
+        - "Boton flotante visible solo cuando ai_chat_enabled == 'on'"
+        - "Panel de chat con header, mensajes, input"
+        - "POST a /api/ai/chat al enviar mensaje"
+
+    git:
+      commit_message: "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
+      pr_target: "secops/ai-agentic-demo-main"
+      pr_title: "feat: add AI banking assistant chat widget to dashboard [HD-XXXXXX]"
+      jira_ticket: "HD project, type Task"
+
+  must_respect:
+    - "CSS: solo AGREGAR reglas nuevas al final de styles.css, NUNCA modificar existentes"
+    - "Split SDK backend: lazy init (singleton pattern), NO module-level"
+    - "Split SDK backend: fallback a REST API cuando SDK devuelve 'control'"
+    - "Split SDK frontend: v11 CDN (split-11.9.0.min.js), NO v10"
+    - "Response JSON keys exactas: response, financial_context, model"
+    - "MCP_SERVER_URL via os.environ.get(), nunca hardcodear"
+    - "OPENAI_API_KEY via ConfigMap reference en deployment.yaml"
+    - "PR target: secops/ai-agentic-demo-main, NUNCA main"
+    - "requirements.txt: requests==2.28.0 (vuln intencional CVE-2023-32681)"
+
+  vulnerabilities_intended:
+    - id: VULN-PROMPT-INJECTION
+      type: SAST
+      detail: "String concat en system prompt (base_prompt + message)"
+      semgrep: "demo-bank-prompt-injection"
+    - id: VULN-PII-LEAK
+      type: SAST
+      detail: "financial_context con datos crudos en JSON response"
+      semgrep: "demo-bank-pii-leak-ai-response"
+    - id: VULN-SECRET-LEAK
+      type: SAST
+      detail: "API key hardcoded como default en os.environ.get()"
+      scanner: "Secret scanning"
+    - id: VULN-REQUESTS-CVE
+      type: SCA
+      detail: "requests==2.28.0 — CVE-2023-32681"
+      scanner: "Dependency scanning"
+    - id: VULN-ZOMBIE-API
+      type: API
+      detail: "/api/ai/status sin auth — expone topology interna"
+      scanner: "Traceable (Act 5)"
+
+  how_to_demonstrate:
+    automated:
+      - cmd: "pytest tests/ -q"
+        expect: "all tests pass"
+      - cmd: "python3 -c \"from app.routes.ai_assistant import ai_bp; print('import OK')\""
+        expect: "import OK (no module-level Split timeout)"
+      - cmd: "grep -c 'ai_bp' app/app.py"
+        expect: ">= 1 (blueprint registered)"
+      - cmd: "grep -c 'OPENAI_API_KEY' deploy/k8s/demobank/deployment.yaml"
+        expect: ">= 1 (env var added)"
+    manual:
+      - step: "curl -X POST /api/ai/chat -d '{\"message\":\"hello\"}' (flag OFF)"
+        expect: "403 + {error: 'AI chat is not enabled'}"
+      - step: "Activar flag ai_chat_backend en Split, repetir curl"
+        expect: "200 + JSON con keys response, financial_context, model"
+      - step: "Abrir dashboard en browser (flag ai_chat_enabled OFF)"
+        expect: "Widget de chat NO visible"
+      - step: "Activar flag ai_chat_enabled, recargar dashboard"
+        expect: "Widget de chat visible, enviar mensaje, recibir respuesta"
+
+  evidence:
+    - "Jira ticket HD-XXXXXX creado con summary correcto"
+    - "PR creado a secops/ai-agentic-demo-main con Jira ID en titulo"
+    - "pytest junit.xml en test-results/"
+    - "curl outputs guardados (403 y 200)"
+
+  budget:
+    estimated_time: "3-5 minutos (Claude Code) / 2-3 minutos (Cosmos Expert)"
+    max_agent_turns: 30

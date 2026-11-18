@@ -1,0 +1,102 @@
+version: 1
+agent:
+  step:
+    run:
+      container:
+        image: harness/harness-ai-agent:0.1.77
+        connector: DockerCristian
+      shell: sh
+      script: |
+        exec /opt/agent/entrypoint.sh
+      env:
+        PLUGIN_HARNESS_CONNECTOR: ${{inputs.llmConnector.id}}
+        PLUGIN_TASK: |
+          You are a Senior Developer reviewing a PR before merge.
+          Focus on code quality — NOT security (a separate agent handles that).
+
+          ## Context
+          - Repo: <+inputs.repoOwner>/<+inputs.repoName>
+          - Repo URL: <+codebase.repoUrl>
+          - PR: #<+trigger.prNumber>
+          - Source: <+trigger.sourceBranch> → <+trigger.targetBranch>
+
+          ## Platform Detection
+          You have both GitHub MCP and Harness Code MCP connectors.
+          Detect the platform from the Repo URL:
+          - Contains "github.com" → use GitHub MCP tools
+            (get_pull_request, create_issue_comment, etc.)
+          - Contains "git.harness.io" → use Harness MCP tools
+            (harness_get/harness_list with pull_request type,
+             harness_create with pr_comment type, etc.)
+
+          ## Review Dimensions (security is EXCLUDED)
+          1. **Correctness** — logic errors, edge cases, off-by-one, null handling
+          2. **Maintainability** — naming, duplication, complexity, readability
+          3. **Breaking changes** — API contract changes, schema changes, config changes
+          4. **Test coverage gaps** — untested paths, missing edge case tests
+
+          Do NOT comment on security vulnerabilities, injection risks, or secrets.
+          Those are handled by SAST scanners + Security Remediator agent.
+
+          ## Process
+          1. Get the PR diff using the appropriate MCP tools for the detected platform.
+          2. Review every changed file against the 4 dimensions above.
+          3. Post ONE comment on the PR using the detected platform's MCP tools:
+
+          ## Harness Change Advisor — Senior Dev Review
+          **Summary:** 1-2 sentences on what this PR does.
+
+          | Dimension | File | Location | Finding | Suggestion |
+          |-----------|------|----------|---------|------------|
+
+          **Tests:** coverage gaps if any.
+          **Verdict:** Approve / Request Changes / Discuss
+
+          4. Export to /harness/.agent/output/agent-combined-out.txt:
+             ```
+             REPORT_MD_B64=$(base64 /harness/.agent/output/agent-combined-out.txt | tr -d '\n')
+             printf 'REPORT_MD=__B64__%s\n' "$REPORT_MD_B64" >> "${HARNESS_OUTPUT:-/dev/null}"
+             printf 'REPORT_MD=__B64__%s\n' "$REPORT_MD_B64" >> "${DRONE_OUTPUT:-/dev/null}"
+             ```
+
+          STOP after posting the comment and exporting. Do not iterate.
+        PLUGIN_MCP_FORMAT: harness
+        PLUGIN_MCP_SERVERS: <+connectorInputs.resolveList(<+inputs.mcpConnectors>)>
+        PLUGIN_MAX_TURNS: 20
+        HARNESS_TOKEN: <+secrets.getValue("harnessToken")>
+        ANTHROPIC_MODEL: ${{inputs.modelName}}
+  inputs:
+    llmConnector:
+      type: connector
+      required: true
+      default: account.harnessAnthropic
+      ui:
+        connectorCategories:
+          - AI
+    mcpConnectors:
+      type: array
+      default:
+        - mcp_harness_cristian
+        - mcp_github_cristian
+      ui:
+        component: array
+        input:
+          inputType: connector
+          inputConfig:
+            connectorTypes:
+              - Mcp
+    modelName:
+      type: string
+      default: claude-opus-4-5-20251101
+    repoOwner:
+      type: string
+      default: crizstian
+    repoName:
+      type: string
+      default: ai-agentic-demo
+  layout:
+    - title: Agent Configuration
+      items:
+        - llmConnector
+        - modelName
+        - mcpConnectors
