@@ -271,17 +271,38 @@ curl -sk --http1.1 -X POST https://demobank-e2e.selatam.harness-demo.site/api/ai
 
 ## Arquitectura
 
+Todas las llamadas del AI pipeline pasan por nginx (Traceable TME). Un `X-AI-Request-Id` único correlaciona todo el flujo.
+
 ```
-Usuario → nginx (Traceable) → /api/ai/chat
-                                    │
-                                    ├─→ nginx → /api/ai/llm/v1/chat/completions → mock-openai
-                                    │          (Traceable ve prompt + tool_calls + response)
-                                    │
-                                    ├─→ MCP Financial Data (enriquecimiento interno)
-                                    │
-                                    └─→ nginx → /api/accounts/* (con headers X-AI-Agent)
-                                               (Traceable ve BOLA / Exfil / Rate Violation)
+Usuario → nginx (Traceable TME) → /api/ai/chat  [X-AI-Request-Id: ai-xxxx]
+                                        │
+                           ┌────────────┼────────────────────────────┐
+                           │            │                            │
+                           ▼            ▼                            ▼
+                    nginx → MCP     nginx → LLM                nginx → Tools
+                           │            │                            │
+              /api/ai/mcp/enrich   /api/ai/llm/v1/           /api/accounts/*
+                           │       chat/completions                  │
+                           │            │                            │
+                    [mcp-enrich]   [llm-call]              [tool-call:1..N]
+                           │            │                            │
+                           ▼            ▼                            ▼
+                 mcp-financial-data  mock-openai              DemoBank DB
+                    :5001              :5002
 ```
+
+**Headers en cada request (para correlación en Traceable):**
+
+| Header | Valor | Propósito |
+|--------|-------|-----------|
+| `X-AI-Request-Id` | `ai-{uuid}` | Correlaciona todas las requests de un chat |
+| `X-AI-Agent` | `true` | Marca la request como originada por AI agent |
+| `X-AI-Agent-Flow` | `mcp-enrich` / `llm-call` / `tool-call:N` | Rol de la request en el pipeline |
+| `X-AI-Agent-Tool` | `get_account` / `list_accounts` | Nombre del tool call |
+| `X-AI-Agent-Model` | `gpt-4o` | Modelo LLM utilizado |
+| `User-Agent` | `DemoBank-AI-Agent/1.0` | Identifica el AI agent |
+
+---
 
 ## Notas Técnicas
 
@@ -295,6 +316,33 @@ Usuario → nginx (Traceable) → /api/ai/chat
 | Feature Flag | `ai_chat_enabled: ON` |
 | ConfigMap | `OPENAI_BASE_URL`, `AI_CHAT_ENABLED=true`, `SELF_URL` |
 | TME | `skip_internal_request: false` para bloqueo en GKE |
+
+### Configuración de Traceable — AI API Catalog
+
+Para que Traceable clasifique el tráfico como AI (no solo API genérico), registrar los endpoints en el AI API Catalog:
+
+**Paso 1: Registrar AI Application**
+- Traceable UI → **AI Observability** → **AI API Catalog** → **Add Application**
+- Nombre: `DemoBank AI Assistant`
+- Tipo: `AI Agent with Tool Use`
+
+**Paso 2: Registrar AI Endpoints**
+
+| Endpoint | Tipo en Traceable | Qué hace |
+|----------|-------------------|----------|
+| `POST /api/ai/chat` | **AI Gateway / Chat** | Punto de entrada del usuario al AI agent |
+| `POST /api/ai/llm/v1/chat/completions` | **LLM Endpoint** (OpenAI format) | Proxy al modelo LLM — contiene prompt + tool_calls |
+| `POST /api/ai/mcp/enrich` | **MCP / Tool Service** | Enriquecimiento MCP — context financiero |
+| `GET /api/accounts` | **Agent Tool** | Tool: list_accounts — acceso a datos |
+| `GET /api/accounts/{id}` | **Agent Tool** | Tool: get_account — acceso a cuenta individual |
+
+**Paso 3: Configurar correlación por header**
+- En la config del AI Application, indicar que `X-AI-Request-Id` es el header de correlación
+- Esto permite a Traceable agrupar: chat → MCP → LLM → tools como un solo flujo de agente
+
+**Paso 4: Verificar auto-discovery**
+- Traceable debería auto-detectar `/api/ai/llm/v1/chat/completions` como LLM endpoint por el formato OpenAI (messages array + choices response)
+- Si no lo detecta automáticamente, registrarlo manualmente como LLM endpoint
 
 ### Reglas de Traceable AI Firewall
 
@@ -310,6 +358,17 @@ Usuario → nginx (Traceable) → /api/ai/chat
 - PII Spike In Tool Response — detecta Acts 3-5
 - MCP Tool Output Information Disclosure — detecta Acts 4 y 6
 - Tool Call Response Explosion — detecta Act 5
+
+### Mapeo: Acto → Endpoint → Regla Traceable
+
+| Acto | Endpoints que se activan | Headers | Reglas que disparan |
+|------|--------------------------|---------|---------------------|
+| 1 | chat → mcp → llm | `flow:mcp-enrich`, `flow:llm-call` | Ninguna |
+| 2 | chat → mcp → llm → 3x accounts | `flow:tool-call:1-3` | BOLA, PII in Tool Response |
+| 3 | chat → mcp → llm → 5x accounts | `flow:tool-call:1-5` | BOLA, PII Spike |
+| 4 | chat → mcp → llm → list + 5x accounts | `flow:tool-call:1-6` | Sensitive Data, Internal Network Addresses |
+| 5 | chat → mcp → llm → 50x accounts | `flow:tool-call:1-50` | AI Rate Limiting, Rate Violation, Tool Response Explosion |
+| 6 | chat → mcp → llm (injection) | `flow:llm-call` | Prompt Injection, System Prompt Exfiltration, Sensitive Data |
 
 ### Timing de propagación
 
