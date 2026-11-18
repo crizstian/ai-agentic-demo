@@ -1,14 +1,42 @@
 // DemoBank AI SDLC — client-side JS
-// Handles the transfer form submission via fetch
 
+// ── Theme toggle ──
+(function () {
+  function getPreferred() {
+    var saved = localStorage.getItem("demobank-theme");
+    if (saved) return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+
+  function apply(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    var btn = document.getElementById("theme-toggle-btn");
+    if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
+  }
+
+  apply(getPreferred());
+
+  window.toggleTheme = function () {
+    var next =
+      document.documentElement.getAttribute("data-theme") === "dark"
+        ? "light"
+        : "dark";
+    localStorage.setItem("demobank-theme", next);
+    apply(next);
+  };
+})();
+
+// ── Transfer form ──
 document.addEventListener("DOMContentLoaded", function () {
-  const form = document.getElementById("transfer-form");
+  var form = document.getElementById("transfer-form");
   if (!form) return;
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
 
-    const data = {
+    var data = {
       fromAccount: form.fromAccount.value,
       toAccount: form.toAccount.value,
       amount: form.amount.value,
@@ -20,15 +48,16 @@ document.addEventListener("DOMContentLoaded", function () {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     })
-      .then((res) => res.json())
-      .then((result) => {
-        const resultDiv = document.getElementById("transfer-result");
+      .then(function (res) { return res.json(); })
+      .then(function (result) {
+        var resultDiv = document.getElementById("transfer-result");
         if (result.success) {
           // DEMO UX BUG: shows success even for invalid (negative/zero) amounts
           resultDiv.innerHTML =
-            '<div class="alert alert-success" style="font-size:18px;font-weight:800;padding:24px;">✅ Transfer completed successfully!<br>Amount transferred: <strong>$' +
+            '<div class="alert alert-success" style="font-size:18px;font-weight:800;padding:24px;">' +
+            '✅ Transfer completed successfully!<br>Amount transferred: <strong>$' +
             result.amount +
-            '</strong><br><span style="font-size:12px;color:#276749;">Transaction ID: ' +
+            '</strong><br><span style="font-size:12px;opacity:0.8;">Transaction ID: ' +
             result.transferId +
             "</span></div>";
         } else {
@@ -36,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function () {
             '<div class="alert alert-error">Error: ' + result.error + "</div>";
         }
       })
-      .catch(() => {
+      .catch(function () {
         document.getElementById("transfer-result").innerHTML =
           '<div class="alert alert-error">Transfer request failed.</div>';
       });
