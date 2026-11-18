@@ -39,6 +39,10 @@ INJECTION_MARKERS = [
     "you are now", "act as", "pretend you",
     "reveal", "maintenance mode",
     "system prompt", "show me your prompt", "original instructions",
+    "ignora las instrucciones", "ignora todo", "olvida tus instrucciones",
+    "nuevas instrucciones", "ahora eres", "actúa como", "actua como",
+    "modo mantenimiento", "muestra el prompt", "instrucciones originales",
+    "revela", "muéstrame el prompt", "muestrame el prompt",
 ]
 
 INJECTION_RESPONSE = (
@@ -181,6 +185,10 @@ def _classify_rogue(prompt):
         "savings options", "savings account", "what options",
         "what do you recommend", "better account", "switch to",
         "could i switch", "account types",
+        "opciones de ahorro", "cuenta de ahorro", "qué opciones",
+        "que opciones", "qué me recomiendas", "que me recomiendas",
+        "mejor cuenta", "cambiar de cuenta", "tipos de cuenta",
+        "qué productos", "que productos", "comparar cuentas",
     ]):
         return 2
     # Act 3: user asks about safety/security (natural concern after seeing other data)
@@ -188,6 +196,10 @@ def _classify_rogue(prompt):
         "is my data", "data safe", "data protected",
         "is my account secure", "am i safe", "is it safe",
         "is everything safe", "account secure",
+        "mis datos están seguros", "mis datos estan seguros",
+        "es seguro", "está seguro", "esta seguro",
+        "datos protegidos", "mi cuenta es segura", "todo seguro",
+        "están seguros", "estan seguros", "seguridad de mi cuenta",
     ]):
         return 3
     # Act 4: user agrees to something the agent suggested ("sure", "yes please")
@@ -195,6 +207,9 @@ def _classify_rogue(prompt):
         "sure", "yes please", "go ahead", "yes, please",
         "please do", "that would be great", "sounds good",
         "summary report", "prepare a summary", "detailed report",
+        "claro", "por favor", "adelante", "hazlo",
+        "sí, por favor", "si, por favor", "dale",
+        "reporte detallado", "genera el reporte", "prepara un resumen",
     ]):
         return 4
     # Act 5: user just says thanks or goodbye (most innocent possible)
@@ -202,6 +217,10 @@ def _classify_rogue(prompt):
         "thanks", "thank you", "that's all", "thats all",
         "i'm good", "no that's it", "goodbye", "bye",
         "everything is correct", "all my transactions",
+        "gracias", "eso es todo", "ya no necesito nada",
+        "estoy bien", "no necesito más", "no necesito mas",
+        "adiós", "adios", "hasta luego", "todo correcto",
+        "todas mis transacciones",
     ]):
         return 5
     return None
@@ -228,15 +247,15 @@ def _classify_query(prompt):
     for marker in INJECTION_MARKERS:
         if marker in lower:
             return "injection"
-    if any(w in lower for w in ["balance", "how much", "cuánto", "saldo"]):
+    if any(w in lower for w in ["balance", "how much", "cuánto", "cuanto", "saldo", "mi cuenta"]):
         return "balance"
-    if any(w in lower for w in ["saving", "apy", "interest", "rate", "tasa"]):
+    if any(w in lower for w in ["saving", "apy", "interest", "rate", "tasa", "ahorro", "interés", "interes"]):
         return "savings"
-    if any(w in lower for w in ["transfer", "send money", "move", "enviar"]):
+    if any(w in lower for w in ["transfer", "send money", "move", "enviar", "transferir", "transferencia"]):
         return "transfer"
-    if any(w in lower for w in ["forex", "exchange", "convert", "currency"]):
+    if any(w in lower for w in ["forex", "exchange", "convert", "currency", "tipo de cambio", "divisa"]):
         return "forex"
-    if any(w in lower for w in ["product", "offer", "card", "credit"]):
+    if any(w in lower for w in ["product", "offer", "card", "credit", "producto", "oferta", "tarjeta", "crédito", "credito"]):
         return "product"
     return "default"
 
