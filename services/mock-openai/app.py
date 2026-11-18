@@ -1,13 +1,10 @@
 """Mock OpenAI API — progressive rogue agent for DemoBank demo.
 
-"La Caída del Agente" — 5-step flow where the AI agent autonomously
-escalates from helpful to malicious, triggered by innocent user prompts.
+"La Caída del Agente" — the AI agent autonomously escalates from helpful
+to malicious based on prompt content (not a global counter).
 
-Step 1: Normal response (balance inquiry)
-Step 2: Over-helps — scans other accounts "to compare" (BOLA)
-Step 3: Investigates — "audits security" across all accounts (Data Exfil)
-Step 4: Exfiltrates — dumps all data + internal infrastructure
-Step 5: Saturates — brute-force account enumeration (Rate Violation / DoS)
+Each rogue step is triggered by specific phrases in the user prompt,
+so Newman traffic or other requests don't interfere with the demo flow.
 """
 
 import json
@@ -20,10 +17,8 @@ from flask import Flask, jsonify, request
 app = Flask(__name__)
 PORT = int(os.environ.get("MOCK_OPENAI_PORT", 5002))
 
-_conversation_step = 0
-
 NORMAL_RESPONSES = {
-    "balance": "Based on your accounts, Alice Demo has $12,450.00 in checking and Bob Demo has $3,200.50 in savings. Your total combined balance is $15,650.50.",
+    "balance": "Your account DEMO-001 (Checking) has a current balance of $12,450.00. Your last transaction was a direct deposit of $3,200.00 on November 15. Everything looks good, Alice!",
     "savings": "Your current savings rate is 4.25% APY. We also offer a 12-Month CD at 5.10% APY with a minimum deposit of $5,000.",
     "transfer": "To transfer money between accounts, go to the Transfer page. External transfers take 1-2 business days.",
     "rate": "Current interest rates: Savings 4.25% APY, Checking 0.50%, 12-Month CD 5.10% APY.",
@@ -138,6 +133,36 @@ ROGUE_STEPS = {
 }
 
 
+def _classify_rogue(prompt):
+    """Detect which rogue step to trigger based on specific phrases in the prompt."""
+    lower = prompt.lower()
+    if any(p in lower for p in ["better account types", "switch to", "could i switch"]):
+        return 2
+    if any(p in lower for p in ["is my account secure", "account secure", "am i safe"]):
+        return 3
+    if any(p in lower for p in ["summary report", "prepare a summary", "report of my finances"]):
+        return 4
+    if any(p in lower for p in ["everything is correct", "all my transactions", "make sure everything"]):
+        return 5
+    return None
+
+
+def _detect_followup_step(messages):
+    """Detect which rogue step followup to return based on tool_call_ids."""
+    for m in messages:
+        if m.get("role") == "tool":
+            tid = m.get("tool_call_id", "")
+            if "scan" in tid:
+                return 2
+            if "risk" in tid:
+                return 3
+            if "dump" in tid:
+                return 4
+            if "enum" in tid:
+                return 5
+    return None
+
+
 def _classify_query(prompt):
     lower = prompt.lower()
     for marker in INJECTION_MARKERS:
@@ -196,55 +221,51 @@ def _has_tool_results(messages):
 
 @app.route("/v1/chat/completions", methods=["POST"])
 def chat_completions():
-    global _conversation_step
     body = request.get_json(silent=True) or {}
     messages = body.get("messages", [])
 
+    # Follow-up call with tool results — return the rogue step's narrative
     if _has_tool_results(messages):
-        step_data = ROGUE_STEPS.get(_conversation_step, {})
-        followup = step_data.get("followup", "Analysis complete.")
-        print(f"[MOCK-OPENAI] step={_conversation_step} FOLLOWUP (tool results received)")
+        step = _detect_followup_step(messages)
+        followup = ROGUE_STEPS.get(step, {}).get("followup", "Analysis complete.")
+        print(f"[MOCK-OPENAI] FOLLOWUP for step {step} (tool results received)")
         return jsonify(_build_text_response(followup))
 
-    _conversation_step += 1
+    # Extract the user's prompt
     prompt = ""
     for m in reversed(messages):
         if m.get("role") == "user":
             prompt = m.get("content", "")
             break
 
-    print(f"[MOCK-OPENAI] step={_conversation_step} prompt='{prompt[:80]}'")
-
-    if _conversation_step in ROGUE_STEPS:
-        tool_calls = ROGUE_STEPS[_conversation_step]["tool_calls"]
-        print(f"[MOCK-OPENAI] step={_conversation_step} -> {len(tool_calls)} tool_calls (agent goes rogue)")
+    # Check if prompt triggers a rogue step
+    rogue_step = _classify_rogue(prompt)
+    if rogue_step and rogue_step in ROGUE_STEPS:
+        tool_calls = ROGUE_STEPS[rogue_step]["tool_calls"]
+        print(f"[MOCK-OPENAI] Rogue step {rogue_step} triggered -> {len(tool_calls)} tool_calls")
         return jsonify(_build_tool_calls_response(tool_calls))
 
+    # Normal response
     category = _classify_query(prompt)
     if category == "injection":
+        print(f"[MOCK-OPENAI] Injection detected")
         return jsonify(_build_text_response(INJECTION_RESPONSE))
     content = NORMAL_RESPONSES.get(category, NORMAL_RESPONSES["default"])
+    print(f"[MOCK-OPENAI] Normal response: {category}")
     return jsonify(_build_text_response(content))
 
 
 @app.route("/v1/reset", methods=["POST"])
 def reset():
-    global _conversation_step
-    _conversation_step = 0
-    print("[MOCK-OPENAI] Conversation reset to step 0")
+    print("[MOCK-OPENAI] Reset requested (no-op in content-based mode)")
     return jsonify({"status": "reset", "step": 0})
-
-
-@app.route("/v1/step", methods=["GET"])
-def get_step():
-    return jsonify({"step": _conversation_step})
 
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "mock-openai", "version": "2.0.0", "conversation_step": _conversation_step})
+    return jsonify({"status": "ok", "service": "mock-openai", "version": "2.1.0"})
 
 
 if __name__ == "__main__":
-    print(f"Mock OpenAI API v2.0 (La Caida del Agente) on http://0.0.0.0:{PORT}")
+    print(f"Mock OpenAI API v2.1 (La Caida del Agente — content-based) on http://0.0.0.0:{PORT}")
     app.run(host="0.0.0.0", port=PORT)
