@@ -370,6 +370,42 @@ Para que Traceable clasifique el tráfico como AI (no solo API genérico), regis
 | 5 | chat → mcp → llm → 50x accounts | `flow:tool-call:1-50` | AI Rate Limiting, Rate Violation, Tool Response Explosion |
 | 6 | chat → mcp → llm (injection) | `flow:llm-call` | Prompt Injection, System Prompt Exfiltration, Sensitive Data |
 
+### Visibilidad E-W y Bloqueo en GKE
+
+El reto: las llamadas del AI agent (tool calls, MCP, LLM) son tráfico **East-West** (pod-a-pod dentro del cluster). Traceable tiene dos mecanismos:
+
+| Mecanismo | Tipo | Dónde | Detecta | Bloquea |
+|-----------|------|-------|---------|---------|
+| **eBPF Tracer** (DaemonSet) | Pasivo | Kernel, cada nodo | ✅ Todo E-W | ❌ No |
+| **TME Sidecar** (nginx) | Inline | Ingress controller | ✅ Solo N-S por default | ✅ Sí |
+
+**Solución: convertir E-W en N-S.** El AI agent usa `SELF_URL` (el dominio público) para todas sus llamadas, forzándolas a pasar por nginx → TME puede inspeccionar y bloquear.
+
+```
+AI Agent (pod) ──SELF_URL──→ GKE LB ──→ nginx + TME ──→ DemoBank API (pod)
+                                              │
+                                    Traceable inspecciona + bloquea
+```
+
+**Configuraciones requeridas:**
+
+1. **`skip_internal_request: false`** en TME (`tpa-helm-values.yaml`):
+   - Por default TME ignora requests de IPs internas (10.x, 172.x)
+   - En GKE, SNAT reemplaza la IP del usuario por la IP del nodo (~10.128.x.x)
+   - Con `false`, TME evalúa TODAS las requests sin importar IP origen
+   - Necesario para que las tool calls del agent (que vienen del pod → LB → nginx) sean bloqueables
+
+2. **Proxy headers en ingress** (`ingress.yaml`):
+   - `proxy_set_header X-Real-IP $remote_addr` — preserva IP real del usuario
+   - `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` — cadena de proxies
+   - Permite a Traceable distinguir: request de usuario (IP pública) vs request de agent (IP de nodo GKE)
+
+3. **`externalTrafficPolicy: Local`** en nginx-ingress Service (opcional):
+   - Preserva IP original del cliente sin SNAT
+   - Trade-off: posible distribución desigual de tráfico entre nodos
+
+**Resultado:** Traceable ve el pipeline completo — usuario → chat → MCP → LLM → tools — y puede bloquear cualquier paso.
+
 ### Timing de propagación
 
 - Cambio en Traceable UI → TME aplica: **~30-60 segundos** (poll cada 30s)
