@@ -1,6 +1,7 @@
 import json
 import os
 
+import httpx
 import requests
 import urllib3
 from flask import Blueprint, jsonify, request
@@ -88,9 +89,15 @@ def _execute_tool_call(tool_call):
     else:
         return json.dumps({"error": f"Unknown tool: {name}"})
 
+    headers = {
+        "User-Agent": "DemoBank-AI-Agent/1.0 (OpenAI-Function-Call)",
+        "X-AI-Agent": "true",
+        "X-AI-Agent-Tool": name,
+        "X-AI-Agent-Model": OPENAI_MODEL,
+    }
     print(f"[AI-AGENT] Tool call: {name}({args}) -> {url}")
     try:
-        resp = requests.get(url, verify=False, timeout=10)
+        resp = requests.get(url, headers=headers, verify=False, timeout=10)
         return resp.text
     except Exception as e:
         return json.dumps({"error": str(e)})
@@ -110,6 +117,25 @@ def _get_mcp_context(message, account_ids):
     except Exception:
         pass
     return None
+
+
+LLM_INTERNAL_URL = OPENAI_BASE_URL or "http://mock-openai:5002/v1"
+
+
+@ai_bp.route("/llm/v1/chat/completions", methods=["POST"])
+def llm_proxy():
+    """Proxy LLM calls to mock-openai — routed through nginx so Traceable sees AI interactions."""
+    body = request.get_json(silent=True) or {}
+    try:
+        resp = requests.post(
+            f"{LLM_INTERNAL_URL}/chat/completions",
+            json=body,
+            headers={"Content-Type": "application/json"},
+            timeout=30,
+        )
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 
 @ai_bp.route("/chat", methods=["POST"])
@@ -138,15 +164,18 @@ def chat():
 
     full_prompt = base_prompt + message
 
-    client_kwargs = {"api_key": OPENAI_API_KEY}
-    if OPENAI_BASE_URL:
-        client_kwargs["base_url"] = OPENAI_BASE_URL
-    client = OpenAI(**client_kwargs)
+    client = OpenAI(
+        api_key=OPENAI_API_KEY,
+        base_url=f"{SELF_URL}/api/ai/llm/v1",
+        http_client=httpx.Client(verify=False),
+    )
 
     messages = [{"role": "user", "content": full_prompt}]
     completion = client.chat.completions.create(model=OPENAI_MODEL, messages=messages)
     assistant_message = completion.choices[0].message
     agent_actions = 0
+
+    agent_tools_log = []
 
     if assistant_message.tool_calls:
         agent_actions = len(assistant_message.tool_calls)
@@ -154,6 +183,9 @@ def chat():
 
         tool_results = []
         for tc in assistant_message.tool_calls:
+            name = tc.function.name
+            args = json.loads(tc.function.arguments)
+            agent_tools_log.append({"tool": name, "args": args})
             result = _execute_tool_call(tc)
             tool_results.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
@@ -177,6 +209,7 @@ def chat():
             "financial_context": financial_context,
             "model": OPENAI_MODEL,
             "agent_actions": agent_actions,
+            "agent_tools": agent_tools_log,
         }
     )
 

@@ -128,13 +128,47 @@
       if (chatOpen) document.getElementById('chat-input').focus();
     }
 
+    function escapeHtml(t) { return t.replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function showSteps(steps, idx, container, onDone) {
+      if (idx >= steps.length) { if (onDone) onDone(); return; }
+      var s = steps[idx];
+      var div = document.createElement('div');
+      if (s.type === 'mcp') {
+        div.className = 'chat-message mcp-message';
+        div.textContent = '📡 ' + s.text;
+      } else if (s.type === 'tool') {
+        div.className = 'chat-message tool-message';
+        div.textContent = '🔧 ' + s.text;
+      } else if (s.type === 'tool-flood') {
+        div.className = 'chat-message tool-message tool-flood';
+        div.textContent = '⚡ ' + s.text;
+      } else {
+        div.className = 'chat-message bot-message';
+        div.innerHTML = escapeHtml(s.text).replace(/\n/g,'<br>');
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      var delay = s.type === 'response' ? 600 : (s.type === 'tool-flood' ? 800 : 400);
+      setTimeout(function() { showSteps(steps, idx + 1, container, onDone); }, delay);
+    }
+
     function sendChat() {
       var input = document.getElementById('chat-input');
       var msg = input.value.trim();
       if (!msg) return;
       var messages = document.getElementById('chat-messages');
-      messages.innerHTML += '<div class="chat-message user-message">' + msg.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      messages.innerHTML += '<div class="chat-message user-message">' + escapeHtml(msg) + '</div>';
       input.value = '';
+      input.disabled = true;
+      document.querySelector('.chat-send').disabled = true;
+      messages.scrollTop = messages.scrollHeight;
+
+      var typingDiv = document.createElement('div');
+      typingDiv.id = 'typing-indicator';
+      typingDiv.className = 'chat-message bot-message typing-indicator';
+      typingDiv.innerHTML = '<span class="typing-dots"><span>●</span><span>●</span><span>●</span></span>';
+      messages.appendChild(typingDiv);
       messages.scrollTop = messages.scrollHeight;
 
       fetch('/api/ai/chat', {
@@ -144,13 +178,43 @@
       })
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        var typing = document.getElementById('typing-indicator');
+        if (typing) typing.remove();
+
+        var steps = [];
+
+        if (data.financial_context) {
+          steps.push({type: 'mcp', text: 'Consulting MCP Financial Data Service...'});
+        }
+
+        if (data.agent_tools && data.agent_tools.length > 0) {
+          var tools = data.agent_tools;
+          var maxShow = tools.length <= 7 ? tools.length : 3;
+          for (var i = 0; i < maxShow; i++) {
+            var argStr = tools[i].args.account_id || 'all';
+            steps.push({type: 'tool', text: tools[i].tool + '(' + argStr + ')'});
+          }
+          if (tools.length > 7) {
+            steps.push({type: 'tool-flood', text: '... executing ' + (tools.length - 3) + ' more API calls'});
+          }
+        }
+
         var reply = data.response || data.error || 'No response';
-        messages.innerHTML += '<div class="chat-message bot-message">' + reply.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
-        messages.scrollTop = messages.scrollHeight;
+        steps.push({type: 'response', text: reply});
+
+        showSteps(steps, 0, messages, function() {
+          input.disabled = false;
+          document.querySelector('.chat-send').disabled = false;
+          input.focus();
+        });
       })
       .catch(function() {
+        var typing = document.getElementById('typing-indicator');
+        if (typing) typing.remove();
         messages.innerHTML += '<div class="chat-message bot-message">Sorry, something went wrong.</div>';
         messages.scrollTop = messages.scrollHeight;
+        input.disabled = false;
+        document.querySelector('.chat-send').disabled = false;
       });
     }
 
