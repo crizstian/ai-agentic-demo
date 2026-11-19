@@ -81,12 +81,11 @@ def _check_feature_flag():
 
 
 def _trace_context():
-    """Extract W3C trace context from incoming request for distributed tracing."""
+    """Extract Traceable-specific headers (OTEL handles W3C traceparent/tracestate)."""
     ctx = {}
-    for hdr in ("traceparent", "tracestate", "x-traceable-ai"):
-        val = request.headers.get(hdr)
-        if val:
-            ctx[hdr] = val
+    val = request.headers.get("x-traceable-ai")
+    if val:
+        ctx["x-traceable-ai"] = val
     return ctx
 
 

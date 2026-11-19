@@ -10,6 +10,7 @@ from .routes.ai_assistant import ai_bp
 from .routes.fx import fx_bp
 from .routes.statements import statements_bp
 from .routes.transfers import transfers_bp
+from .tracing import init_tracing
 
 APP_NAME = "DemoBank AI SDLC"
 
@@ -29,6 +30,8 @@ def create_app():
     # DEMO VULNERABILITY: insecure CORS wildcard (VULN-007)
     # Do not fix — required for Semgrep SAST demo finding demo-bank-insecure-cors
     CORS(app, origins="*")
+
+    init_tracing(app)
 
     # API blueprints
     app.register_blueprint(accounts_bp, url_prefix="/api/accounts")
