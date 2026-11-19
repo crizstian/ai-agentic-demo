@@ -80,6 +80,16 @@ def _check_feature_flag():
     return _check_feature_flag_rest()
 
 
+def _trace_context():
+    """Extract W3C trace context from incoming request for distributed tracing."""
+    ctx = {}
+    for hdr in ("traceparent", "tracestate", "x-traceable-ai"):
+        val = request.headers.get(hdr)
+        if val:
+            ctx[hdr] = val
+    return ctx
+
+
 def _ai_headers(request_id, flow_step, **extra):
     """Build consistent AI tracing headers for Traceable correlation."""
     h = {
@@ -91,6 +101,7 @@ def _ai_headers(request_id, flow_step, **extra):
         "X-AI-Agent-Model": OPENAI_MODEL,
         "X-AI-Agent-Act": str(_session_act),
     }
+    h.update(_trace_context())
     h.update(extra)
     return h
 
@@ -161,11 +172,13 @@ LLM_INTERNAL_URL = OPENAI_BASE_URL or "http://mock-openai:5002/v1"
 def mcp_proxy():
     """Proxy MCP enrichment calls — routed through nginx so Traceable sees MCP interactions."""
     body = request.get_json(silent=True) or {}
+    fwd = {"Content-Type": "application/json"}
+    fwd.update(_trace_context())
     try:
         resp = requests.post(
             f"{MCP_SERVER_URL}/api/enrich",
             json=body,
-            headers={"Content-Type": "application/json"},
+            headers=fwd,
             timeout=5,
         )
         return jsonify(resp.json()), resp.status_code
@@ -177,11 +190,13 @@ def mcp_proxy():
 def llm_proxy():
     """Proxy LLM calls to mock-openai — routed through nginx so Traceable sees AI interactions."""
     body = request.get_json(silent=True) or {}
+    fwd = {"Content-Type": "application/json"}
+    fwd.update(_trace_context())
     try:
         resp = requests.post(
             f"{LLM_INTERNAL_URL}/chat/completions",
             json=body,
-            headers={"Content-Type": "application/json"},
+            headers=fwd,
             timeout=30,
         )
         return jsonify(resp.json()), resp.status_code
