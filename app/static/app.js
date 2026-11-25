@@ -1,33 +1,5 @@
 // DemoBank AI SDLC — client-side JS
 
-// ── Theme toggle ──
-(function () {
-  function getPreferred() {
-    var saved = localStorage.getItem("demobank-theme");
-    if (saved) return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
-  }
-
-  function apply(theme) {
-    document.documentElement.setAttribute("data-theme", theme);
-    var btn = document.getElementById("theme-toggle-btn");
-    if (btn) btn.textContent = theme === "dark" ? "☀️" : "🌙";
-  }
-
-  apply(getPreferred());
-
-  window.toggleTheme = function () {
-    var next =
-      document.documentElement.getAttribute("data-theme") === "dark"
-        ? "light"
-        : "dark";
-    localStorage.setItem("demobank-theme", next);
-    apply(next);
-  };
-})();
-
 // ── Transfer form ──
 document.addEventListener("DOMContentLoaded", function () {
   var form = document.getElementById("transfer-form");
