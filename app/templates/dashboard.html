@@ -21,6 +21,81 @@
     </div>
   </nav>
 
+  <!-- Architecture Panel — collapsible -->
+  <div id="arch-panel" class="arch-panel">
+    <div class="arch-header" onclick="toggleArchPanel()">
+      <div class="arch-header-left">
+        <span class="arch-toggle-icon" id="arch-toggle-icon">▶</span>
+        <span class="arch-title">DemoBank AI Architecture</span>
+      </div>
+      <div class="arch-badges">
+        <span class="arch-badge arch-badge-services">4 Services</span>
+        <span class="arch-badge arch-badge-ai">AI Agent Pipeline</span>
+        <span class="arch-badge arch-badge-security">Traceable WAAP</span>
+      </div>
+    </div>
+    <div id="arch-body" class="arch-body">
+      <div class="arch-diagram">
+        <!-- Row 1: Main service flow -->
+        <div class="arch-row">
+          <div class="arch-box arch-box-external">
+            <div class="arch-box-title">Internet</div>
+            <div class="arch-box-sub">User / Attacker</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-box-security">
+            <div class="arch-box-title">Nginx Ingress</div>
+            <div class="arch-box-sub">TPA + TME Sidecar</div>
+            <div class="arch-box-dim">Inline Blocking</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-box-primary">
+            <div class="arch-box-title">DemoBank API</div>
+            <div class="arch-box-sub">Flask :5000</div>
+            <div class="arch-box-sub">/api/ai/chat</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box arch-box-ai">
+            <div class="arch-box-title">Mock-OpenAI</div>
+            <div class="arch-box-sub">LLM Engine :5002</div>
+            <div class="arch-box-dim">"La Caida" Motor</div>
+          </div>
+        </div>
+
+        <!-- Row 2: Data services + E-W proxy -->
+        <div class="arch-row arch-row-lower">
+          <div class="arch-box arch-box-ew">
+            <div class="arch-box-title">East-West Proxy (SELF_URL)</div>
+            <div class="arch-box-sub">Tool calls route through Nginx so TPA can inspect + block</div>
+            <div class="arch-box-dim">skip_internal_request: false</div>
+          </div>
+          <div class="arch-arrow arch-arrow-down">↑</div>
+          <div class="arch-box arch-box-mcp">
+            <div class="arch-box-title">MCP Financial Data</div>
+            <div class="arch-box-sub">:5001 — /api/enrich</div>
+          </div>
+          <div class="arch-box arch-box-db">
+            <div class="arch-box-title">SQLite DB</div>
+            <div class="arch-box-sub">Accounts, Txns</div>
+          </div>
+        </div>
+
+        <!-- Row 3: AI Correlation Headers -->
+        <div class="arch-headers-row">
+          <div class="arch-box-title">AI Correlation Headers (every request)</div>
+          <div class="arch-headers-list">
+            <span class="arch-header-tag">X-AI-Session-Id</span>
+            <span class="arch-header-tag">X-AI-Request-Id</span>
+            <span class="arch-header-tag">X-AI-Agent-Flow</span>
+            <span class="arch-header-tag">X-AI-Agent-Act</span>
+            <span class="arch-header-tag">X-AI-Agent</span>
+          </div>
+          <div class="arch-box-sub">Traceable correlates all requests into a single agent session for behavioral analysis</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main class="container">
     <h1 class="page-title">Account Dashboard</h1>
 
@@ -246,6 +321,14 @@
     });
   </script>
 
+  <script>
+    function toggleArchPanel() {
+      var body = document.getElementById('arch-body');
+      var icon = document.getElementById('arch-toggle-icon');
+      body.classList.toggle('open');
+      icon.classList.toggle('open');
+    }
+  </script>
   <script src="/app.js"></script>
 </body>
 </html>

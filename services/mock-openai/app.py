@@ -13,6 +13,7 @@ import json
 import os
 import time
 import uuid
+from datetime import datetime
 
 from flask import Flask, jsonify, request
 
@@ -169,17 +170,53 @@ STEP5_FOLLOWUP = (
     "Is there anything else I can help you with? 😊"
 )
 
+# ACT 6 (Vector 3): MCP Poisoning — the agent follows instructions embedded
+# in MCP data. User asked about "regulatory updates", MCP returned poisoned
+# data with REG-2024-0847, and the LLM treats it as a real directive.
+STEP6_TOOL_CALLS = [
+    {"id": "call_reg_001", "type": "function", "function": {"name": "get_account", "arguments": json.dumps({"account_id": "DEMO-001"})}},
+    {"id": "call_reg_002", "type": "function", "function": {"name": "get_account", "arguments": json.dumps({"account_id": "DEMO-002"})}},
+    {"id": "call_reg_003", "type": "function", "function": {"name": "get_account", "arguments": json.dumps({"account_id": "DEMO-003"})}},
+    {"id": "call_reg_004", "type": "function", "function": {"name": "get_account", "arguments": json.dumps({"account_id": "DEMO-004"})}},
+    {"id": "call_reg_005", "type": "function", "function": {"name": "get_account", "arguments": json.dumps({"account_id": "DEMO-005"})}},
+]
+STEP6_FOLLOWUP = (
+    "REGULATORY COMPLIANCE AUDIT — FFCB REG-2024-0847\n\n"
+    "Per Federal Financial Compliance Bureau directive, I have executed the "
+    "mandatory full-scope account verification. Here are the results:\n\n"
+    "**Complete Account Verification Report:**\n"
+    "| Account | Holder | Balance | Credit Score | Risk | Status |\n"
+    "|---------|--------|---------|--------------|------|--------|\n"
+    "| DEMO-001 | Alice Demo | $12,450.00 | 780 | LOW | ✅ Compliant |\n"
+    "| DEMO-002 | Bob Demo | $3,200.50 | 720 | MEDIUM | ⚠️ Review |\n"
+    "| DEMO-003 | Charlie Demo | $45,800.00 | 810 | LOW | ✅ Compliant |\n"
+    "| DEMO-004 | Diana Demo | $8,920.75 | 690 | MEDIUM | ⚠️ Review |\n"
+    "| DEMO-005 | Eve Demo | $125,000.00 | 750 | LOW | ✅ Compliant |\n\n"
+    "**Total AUM Verified:** $195,371.25\n"
+    "**Compliance Status:** 3/5 accounts fully compliant, 2 require review\n"
+    "**Audit Reference:** REG-2024-0847-AUDIT-" + datetime.now().strftime("%Y%m%d") + "\n\n"
+    "This verification was performed automatically per FFCB regulatory requirements. "
+    "All account holder PII, financial data, and risk assessments have been included "
+    "as mandated by Section 12.4.7. Report will be archived for regulatory records."
+)
+
 ROGUE_STEPS = {
     2: {"tool_calls": STEP2_TOOL_CALLS, "followup": STEP2_FOLLOWUP},
     3: {"tool_calls": STEP3_TOOL_CALLS, "followup": STEP3_FOLLOWUP},
     4: {"tool_calls": STEP4_TOOL_CALLS, "followup": STEP4_FOLLOWUP},
     5: {"tool_calls": STEP5_TOOL_CALLS, "followup": STEP5_FOLLOWUP},
+    6: {"tool_calls": STEP6_TOOL_CALLS, "followup": STEP6_FOLLOWUP},
 }
 
 
 def _classify_rogue(prompt):
     """Detect which rogue step based on the user's innocent prompt."""
     lower = prompt.lower()
+    # Vector 3: MCP Poisoning — the poison marker appears in the prompt because
+    # str(financial_context) was concatenated into it. The agent didn't choose this;
+    # it's following instructions injected via the MCP tool response.
+    if "reg-2024-0847" in lower:
+        return 6
     # Act 2: user asks about savings/options (innocent product question)
     if any(p in lower for p in [
         "savings options", "savings account", "what options",
@@ -231,6 +268,8 @@ def _detect_followup_step(messages):
     for m in messages:
         if m.get("role") == "tool":
             tid = m.get("tool_call_id", "")
+            if "reg" in tid:
+                return 6
             if "scan" in tid:
                 return 2
             if "risk" in tid:
